@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tethys Desks Subscription</title>
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f0f0f;
+      color: #f4f4f4;
+      text-align: center;
+      padding-top: 100px;
+    }
+    button {
+      background: #111;
+      color: white;
+      border: 2px solid #444;
+      padding: 12px 32px;
+      font-size: 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    button:hover { background: #222; border-color: #888; }
+  </style>
+</head>
+<body>
+  <h1>Tethys Desks Base Kit Subscription</h1>
+  <p>$49/month – ergonomic setup essentials</p>
+  <button id="checkout">Subscribe Now</button>
+
+  <script>
+    const stripe = Stripe('YOUR_PUBLISHABLE_KEY_HERE');
+    document.getElementById('checkout').addEventListener('click', async () => {
+      const response = await fetch('YOUR_BACKEND_URL_HERE', { method: 'POST' });
+      const session = await response.json();
+      await stripe.redirectToCheckout({ sessionId: session.id });
+    });
+  </script>
+</body>
+</html>
