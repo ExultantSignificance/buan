@@ -1,43 +1,193 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tethys Desks Subscription</title>
-  <script src="https://js.stripe.com/v3/"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #0f0f0f;
-      color: #f4f4f4;
-      text-align: center;
-      padding-top: 100px;
-    }
-    button {
-      background: #111;
-      color: white;
-      border: 2px solid #444;
-      padding: 12px 32px;
-      font-size: 1rem;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-    button:hover { background: #222; border-color: #888; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elite Social Boost</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+  body {
+    margin: 0;
+    font-family: 'Roboto', sans-serif;
+    background: #0f0f0f;
+    color: #f4f4f4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 20px;
+  }
+
+  h1 {
+    font-weight: 700;
+    font-size: 2.5rem;
+    margin-top: 50px;
+    opacity: 0;
+    transform: translateY(-20px);
+    animation: fadeInUp 0.6s forwards;
+  }
+
+  p.description {
+    font-weight: 400;
+    font-size: 1.2rem;
+    margin-bottom: 2rem;
+    color: #ccc;
+    text-align: center;
+    max-width: 600px;
+    opacity: 0;
+    transform: translateY(-20px);
+    animation: fadeInUp 0.6s forwards 0.2s;
+  }
+
+  .portfolio {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 1000px;
+    margin-bottom: 3rem;
+  }
+
+  .portfolio img {
+    width: 100%;
+    border-radius: 12px;
+    transition: 0.3s;
+    cursor: pointer;
+    object-fit: cover;
+    aspect-ratio: 16/9;
+    opacity: 0;
+    transform: scale(0.95);
+    animation: fadeInScale 0.6s forwards;
+  }
+
+  .portfolio img:nth-child(1){ animation-delay: 0.1s; }
+  .portfolio img:nth-child(2){ animation-delay: 0.2s; }
+  .portfolio img:nth-child(3){ animation-delay: 0.3s; }
+  .portfolio img:nth-child(4){ animation-delay: 0.4s; }
+
+  .plans {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    justify-content: center;
+    margin-bottom: 50px;
+  }
+
+  .plan {
+    background: #111;
+    border: 2px solid #444;
+    border-radius: 12px;
+    padding: 2rem;
+    min-width: 250px;
+    text-align: center;
+    transition: 0.2s;
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeInUp 0.6s forwards 0.5s;
+  }
+
+  .plan:hover {
+    background: #222;
+    border-color: #888;
+  }
+
+  .plan h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .plan p {
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
+    color: #ccc;
+  }
+
+  .plan button {
+    background: #0f0f0f;
+    color: #fff;
+    border: 2px solid #888;
+    padding: 12px 30px;
+    font-size: 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  .plan button:hover {
+    background: #222;
+    border-color: #aaa;
+  }
+
+  /* Sticky Subscribe Button */
+  .sticky-cta {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #111;
+    color: #fff;
+    border: 2px solid #888;
+    padding: 14px 28px;
+    font-size: 1rem;
+    border-radius: 12px;
+    cursor: pointer;
+    z-index: 1000;
+    transition: 0.2s;
+  }
+
+  .sticky-cta:hover {
+    background: #222;
+    border-color: #aaa;
+  }
+
+  .footer {
+    font-size: 0.9rem;
+    color: #555;
+    text-align: center;
+    margin-bottom: 30px;
+  }
+
+  /* Animations */
+  @keyframes fadeInUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeInScale {
+    to { opacity: 1; transform: scale(1); }
+  }
+</style>
 </head>
 <body>
-  <h1>Tethys Desks Base Kit Subscription</h1>
-  <p>$49/month – ergonomic setup essentials</p>
-  <button id="checkout">Subscribe Now</button>
 
-  <script>
-    const stripe = Stripe('YOUR_PUBLISHABLE_KEY_HERE');
-    document.getElementById('checkout').addEventListener('click', async () => {
-      const response = await fetch('YOUR_BACKEND_URL_HERE', { method: 'POST' });
-      const session = await response.json();
-      await stripe.redirectToCheckout({ sessionId: session.id });
-    });
-  </script>
+  <h1>Elite Social Boost</h1>
+  <p class="description">Professional social content for your business. Preview our work below and pick the plan that suits your growth.</p>
+
+  <!-- Portfolio Section -->
+  <div class="portfolio">
+    <img src="https://via.placeholder.com/400x225?text=Post+1" alt="Portfolio 1">
+    <img src="https://via.placeholder.com/400x225?text=Post+2" alt="Portfolio 2">
+    <img src="https://via.placeholder.com/400x225?text=Post+3" alt="Portfolio 3">
+    <img src="https://via.placeholder.com/400x225?text=Post+4" alt="Portfolio 4">
+  </div>
+
+  <!-- Subscription Plans -->
+  <div class="plans">
+    <div class="plan">
+      <h2>Basic</h2>
+      <p>4 posts per month – high-quality content for your business</p>
+      <button onclick="window.location.href='YOUR_STRIPE_LINK_BASIC'">Subscribe $49/mo</button>
+    </div>
+
+    <div class="plan">
+      <h2>Pro</h2>
+      <p>8 posts per month + analytics + optional ad boost</p>
+      <button onclick="window.location.href='YOUR_STRIPE_LINK_PRO'">Subscribe $99/mo</button>
+    </div>
+  </div>
+
+  <!-- Sticky CTA Button -->
+  <button class="sticky-cta" onclick="window.location.href='YOUR_STRIPE_LINK_BASIC'">Subscribe Now</button>
+
+  <div class="footer">Secure checkout powered by Stripe</div>
+
 </body>
 </html>
