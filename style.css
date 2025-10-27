@@ -48,13 +48,15 @@ body {
 }
 
 .review img {
-  width: 75%;
-  aspect-ratio: 1 / 1;
-  border-radius: 8px; /* small rounded corners */
-  margin-top: 1rem;
+  width: 75vw; /* 75% of the viewport width */
+  max-width: 900px; /* prevents it from being absurdly big on ultrawide screens */
+  aspect-ratio: 1 / 1; /* keeps it square */
   object-fit: cover;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  border-radius: 10px; /* small rounded corners */
+  margin-top: 10px;
+  display: block;
 }
+
 
 /* Staggered alignment */
 .rev1 { align-self: flex-start; text-align: left; }
