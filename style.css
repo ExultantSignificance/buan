@@ -23,44 +23,58 @@ body {
   z-index: 100;
 }
 
+/* Reviews Section */
 .reviews {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  padding: 3rem 2rem;
-  gap: 5rem;
+  align-items: center;
+  padding: 4rem 0;
+  gap: 6rem;
 }
 
 .review {
-  max-width: 500px;
-  position: relative;
-  animation: fadeInUp 1s ease;
+  display: flex;
+  flex-direction: column;
+  width: 70%;
+  max-width: 600px;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.8s ease;
+}
+
+.review.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .review img {
-  width: 80px;
-  height: 80px;
+  width: 90px;
+  height: 90px;
   border-radius: 50%;
   margin-top: 1rem;
+  object-fit: cover;
 }
 
+/* Staggered alignment */
+.rev1 { align-self: flex-start; text-align: left; }
+.rev2 { align-self: flex-end; text-align: right; }
+.rev3 { align-self: flex-start; text-align: left; }
+
+/* Button */
 .next-button {
-  margin: 5rem auto;
-  display: block;
+  margin-top: 4rem;
   background: #222;
   color: white;
-  padding: 0.75rem 2rem;
+  padding: 0.8rem 2rem;
   border-radius: 25px;
   text-decoration: none;
-  text-align: center;
   font-size: 1rem;
-  transition: background 0.3s;
+  transition: background 0.3s ease;
 }
 
-.next-button:hover {
-  background: #444;
-}
+.next-button:hover { background: #444; }
 
+/* Bundles Page */
 .bundle-section {
   text-align: center;
   padding: 3rem 2rem;
@@ -103,6 +117,7 @@ body {
   font-size: 0.9rem;
 }
 
+/* Animation */
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(30px); }
   to { opacity: 1; transform: translateY(0); }
