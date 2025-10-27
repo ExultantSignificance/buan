@@ -1,127 +1,126 @@
-* {
+/* ---------- General Page Setup ---------- */
+body {
+  font-family: 'Helvetica Neue', Arial, sans-serif;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
-  font-family: "Helvetica Neue", Arial, sans-serif;
-  scroll-behavior: smooth;
-}
-
-body {
-  background: white;
-  color: #222;
+  background-color: #fff;
+  color: #111;
   line-height: 1.6;
 }
 
-.sticky-header {
+h1 {
+  text-align: center;
+  padding: 20px;
+  font-size: 2rem;
   position: sticky;
   top: 0;
-  background: white;
+  background-color: white;
   border-bottom: 1px solid #eee;
-  padding: 1rem 2rem;
-  text-align: center;
-  font-weight: 500;
   z-index: 100;
 }
 
-/* Reviews Section */
+/* ---------- Reviews Section ---------- */
 .reviews {
+  width: 90%;
+  max-width: 1100px;
+  margin: 60px auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 4rem 0;
-  gap: 6rem;
+  gap: 120px;
 }
 
 .review {
   display: flex;
   flex-direction: column;
-  width: 70%;
-  max-width: 600px;
-  opacity: 0;
-  transform: translateY(30px);
-  transition: all 0.8s ease;
+  max-width: 900px;
 }
 
-.review.visible {
-  opacity: 1;
-  transform: translateY(0);
+.review p {
+  font-style: italic;
+  font-size: 1.1rem;
+  margin-top: 5px;
 }
 
 .review img {
-  width: 75vw; /* 75% of the viewport width */
-  max-width: 900px; /* prevents it from being absurdly big on ultrawide screens */
-  aspect-ratio: 1 / 1; /* keeps it square */
-  object-fit: cover;
-  border-radius: 10px; /* small rounded corners */
-  margin-top: 10px;
+  width: 75vw; /* 75% of viewport width */
+  max-width: 900px;
+  aspect-ratio: 1 / 1;
+  object-fit: contain; /* prevents face cropping */
+  border-radius: 10px;
   display: block;
+  margin: 10px auto; /* centers horizontally */
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
 }
 
-
-/* Staggered alignment */
-.rev1 { align-self: flex-start; text-align: left; }
-.rev2 { align-self: flex-end; text-align: right; }
-.rev3 { align-self: flex-start; text-align: left; }
-
-/* Button */
-.next-button {
-  margin-top: 4rem;
-  background: #222;
-  color: white;
-  padding: 0.8rem 2rem;
-  border-radius: 25px;
-  text-decoration: none;
-  font-size: 1rem;
-  transition: background 0.3s ease;
-}
-
-.next-button:hover { background: #444; }
-
-/* Bundles Page */
-.bundle-section {
-  text-align: center;
-  padding: 3rem 2rem;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.bundle-section h2 {
-  margin-bottom: 0.5rem;
-}
-
-.pricing {
-  text-align: center;
-  padding: 2rem;
-}
-
-.pricing table {
-  margin: 1rem auto;
-  border-collapse: collapse;
-  width: 80%;
-  max-width: 600px;
-}
-
-.pricing th, .pricing td {
-  border: 1px solid #ddd;
-  padding: 1rem;
+/* ---------- Staggered Layout ---------- */
+.review.left {
+  align-self: flex-start;
   text-align: left;
 }
 
-.pricing th {
-  background: #fafafa;
+.review.right {
+  align-self: flex-end;
+  text-align: right;
 }
 
-.sticky-footer {
+/* ---------- Stars ---------- */
+.stars {
+  color: #f1c40f;
+  font-size: 1.3rem;
+}
+
+/* ---------- Button ---------- */
+.next-button {
+  display: block;
+  width: fit-content;
+  margin: 60px auto;
+  padding: 15px 40px;
+  background-color: #111;
+  color: white;
+  text-decoration: none;
+  font-weight: 600;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.next-button:hover {
+  background-color: #333;
+}
+
+/* ---------- Bundles Page ---------- */
+.bundles {
+  width: 90%;
+  max-width: 900px;
+  margin: 60px auto;
+}
+
+.bundle {
+  background: #f9f9f9;
+  padding: 30px;
+  border-radius: 10px;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.bundle h2 {
+  margin-top: 0;
+}
+
+.contact {
   position: sticky;
   bottom: 0;
-  background: white;
-  border-top: 1px solid #eee;
+  background: #fff;
+  padding: 15px;
   text-align: center;
-  padding: 1rem;
-  font-size: 0.9rem;
+  border-top: 1px solid #ddd;
 }
 
-/* Animation */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(30px); }
-  to { opacity: 1; transform: translateY(0); }
+.contact a {
+  color: #111;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.contact a:hover {
+  text-decoration: underline;
 }
