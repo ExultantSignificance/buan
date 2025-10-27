@@ -1,0 +1,109 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: white;
+  color: #222;
+  line-height: 1.6;
+}
+
+.sticky-header {
+  position: sticky;
+  top: 0;
+  background: white;
+  border-bottom: 1px solid #eee;
+  padding: 1rem 2rem;
+  text-align: center;
+  font-weight: 500;
+  z-index: 100;
+}
+
+.reviews {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 3rem 2rem;
+  gap: 5rem;
+}
+
+.review {
+  max-width: 500px;
+  position: relative;
+  animation: fadeInUp 1s ease;
+}
+
+.review img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin-top: 1rem;
+}
+
+.next-button {
+  margin: 5rem auto;
+  display: block;
+  background: #222;
+  color: white;
+  padding: 0.75rem 2rem;
+  border-radius: 25px;
+  text-decoration: none;
+  text-align: center;
+  font-size: 1rem;
+  transition: background 0.3s;
+}
+
+.next-button:hover {
+  background: #444;
+}
+
+.bundle-section {
+  text-align: center;
+  padding: 3rem 2rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.bundle-section h2 {
+  margin-bottom: 0.5rem;
+}
+
+.pricing {
+  text-align: center;
+  padding: 2rem;
+}
+
+.pricing table {
+  margin: 1rem auto;
+  border-collapse: collapse;
+  width: 80%;
+  max-width: 600px;
+}
+
+.pricing th, .pricing td {
+  border: 1px solid #ddd;
+  padding: 1rem;
+  text-align: left;
+}
+
+.pricing th {
+  background: #fafafa;
+}
+
+.sticky-footer {
+  position: sticky;
+  bottom: 0;
+  background: white;
+  border-top: 1px solid #eee;
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.9rem;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
