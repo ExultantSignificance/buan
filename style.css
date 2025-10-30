@@ -196,3 +196,38 @@ body {
   animation: slideFadeInLeft 0.8s ease-out forwards;
   animation-delay: 0.2s; /* text slides slightly after image */
 }
+
+/* ---------- Background decorations ---------- */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  background-repeat: no-repeat;
+  background-size: 35vw auto; /* adjust for size */
+  opacity: 0.15; /* faint look */
+  z-index: 0;
+  pointer-events: none;
+}
+
+body::before {
+  background-image: url("images/2.jpg");
+  bottom: 0;
+  left: 0;
+  width: 40vw;
+  height: 40vw;
+}
+
+body::after {
+  background-image: url("images/1.jpg");
+  top: 0;
+  right: 0;
+  width: 40vw;
+  height: 40vw;
+}
+
+/* keep content above backgrounds */
+header, main, footer {
+  position: relative;
+  z-index: 1;
+}
+
