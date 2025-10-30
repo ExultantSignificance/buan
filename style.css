@@ -177,6 +177,8 @@ body {
   }
 }
 
+.about-img,
+.about-text,
 .review-img,
 .review-text {
   opacity: 0;
@@ -184,12 +186,13 @@ body {
   transition: all 0.8s ease-out;
 }
 
-/* When visible */
+.visible .about-img,
 .visible .review-img {
   animation: slideFadeInLeft 0.8s ease-out forwards;
 }
 
+.visible .about-text,
 .visible .review-text {
   animation: slideFadeInLeft 0.8s ease-out forwards;
-  animation-delay: 0.2s; /* text slides in after the image */
+  animation-delay: 0.2s; /* text slides slightly after image */
 }
