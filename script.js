@@ -1,9 +1,16 @@
-document.addEventListener("scroll", () => {
+document.addEventListener("DOMContentLoaded", () => {
   const reviews = document.querySelectorAll(".review");
-  reviews.forEach(r => {
-    const rect = r.getBoundingClientRect();
-    if (rect.top < window.innerHeight - 100) {
-      r.classList.add("visible");
-    }
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("visible");
+        observer.unobserve(entry.target); // trigger only once per review
+      }
+    });
+  }, { threshold: 0.2 });
+
+  reviews.forEach(review => {
+    observer.observe(review);
   });
 });
