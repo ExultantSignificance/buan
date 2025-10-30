@@ -204,7 +204,7 @@ body::after {
   position: fixed;
   background-repeat: no-repeat;
   background-size: 35vw auto; /* adjust for size */
-  opacity: 0.15; /* faint look */
+  opacity: 0.8; /* faint look */
   z-index: 0;
   pointer-events: none;
 }
