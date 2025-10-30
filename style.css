@@ -112,6 +112,59 @@ body {
   }
 }
 
+/* ---------- About Section ---------- */
+.about {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4rem;
+  width: 90%;
+  max-width: 1200px;
+  margin: 6rem auto 8rem;
+}
+
+.about-img {
+  width: 40%;
+  max-width: 400px;
+  border-radius: 8px;
+  height: auto;
+  object-fit: cover;
+}
+
+.about-text {
+  width: 50%;
+}
+
+.about-text h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.about-text p {
+  margin-bottom: 1rem;
+  color: #333;
+  line-height: 1.7;
+}
+
+/* Responsive layout */
+@media (max-width: 800px) {
+  .about {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .about-img,
+  .about-text {
+    width: 100%;
+  }
+
+  .about-text h2 {
+    margin-top: 2rem;
+  }
+}
+
+
 /* ---------- Animation Styles ---------- */
 @keyframes slideFadeInLeft {
   0% {
