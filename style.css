@@ -207,6 +207,7 @@ body::after {
   opacity: 0.8; /* faint look */
   z-index: 0;
   pointer-events: none;
+  border: 2px solid red;
 }
 
 body::before {
