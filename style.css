@@ -198,37 +198,39 @@ body {
 }
 
 /* ---------- Background decorations ---------- */
+/* Background images */
 body::before,
 body::after {
   content: "";
   position: fixed;
   background-repeat: no-repeat;
-  background-size: 35vw auto; /* adjust for size */
-  opacity: 0.8; /* faint look */
+  background-size: cover; /* fill their boxes proportionally */
   z-index: 0;
   pointer-events: none;
-  border: 2px solid red;
 }
 
+/* Bottom-left image */
 body::before {
   background-image: url("images/2.jpg");
   bottom: 0;
   left: 0;
-  width: 40vw;
-  height: 40vw;
+  width: 50vw;  /* wider */
+  height: 50vw;
+  opacity: 0.5; /* lighter */
 }
 
+/* Top-right image */
 body::after {
   background-image: url("images/1.jpg");
   top: 0;
   right: 0;
-  width: 40vw;
-  height: 40vw;
+  width: 60vw;  /* wider too */
+  height: 60vw;
+  opacity: 0.8; /* darker */
 }
 
-/* keep content above backgrounds */
+/* Keep content above backgrounds */
 header, main, footer {
   position: relative;
   z-index: 1;
 }
-
