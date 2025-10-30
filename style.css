@@ -214,8 +214,8 @@ body::before {
   background-image: url("images/2.jpg");
   bottom: 0;
   left: 0;
-  width: 50vw;  /* wider */
-  height: 50vw;
+  width: 38vw;  /* wider */
+  height: 38vw;
   opacity: 0.5; /* lighter */
 }
 
@@ -224,8 +224,8 @@ body::after {
   background-image: url("images/1.jpg");
   top: 0;
   right: 0;
-  width: 60vw;  /* wider too */
-  height: 60vw;
+  width: 48vw;  /* wider too */
+  height: 48vw;
   opacity: 0.8; /* darker */
 }
 
