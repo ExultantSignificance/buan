@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const reviews = document.querySelectorAll(".review");
+  const reviews = document.querySelectorAll(".review, .about");
 
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {
