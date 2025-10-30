@@ -1,17 +1,18 @@
-/* ---------- General Page Setup ---------- */
+/* ---------- General ---------- */
 body {
   font-family: 'Helvetica Neue', Arial, sans-serif;
+  background: #fff;
+  color: #111;
   margin: 0;
   padding: 0;
-  background-color: #fff;
-  color: #111;
   line-height: 1.6;
 }
 
 h1 {
   text-align: center;
   padding: 20px;
-  font-size: 2rem;
+  font-size: 2.2rem;
+  font-weight: 600;
   position: sticky;
   top: 0;
   background-color: white;
@@ -19,21 +20,61 @@ h1 {
   z-index: 100;
 }
 
-/* ---------- Reviews Section ---------- */
+/* ---------- Button ---------- */
+.pricing-btn {
+  display: block;
+  width: fit-content;
+  margin: 60px auto 100px;
+  padding: 14px 32px;
+  background-color: #111;
+  color: white;
+  text-decoration: none;
+  font-weight: 600;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.pricing-btn:hover {
+  background-color: #333;
+}
+
+/* ---------- Reviews ---------- */
 .reviews {
   width: 90%;
-  max-width: 1100px;
-  margin: 80px auto;
+  max-width: 900px;
+  margin: 0 auto 120px;
   display: flex;
   flex-direction: column;
-  gap: 160px;
+  gap: 80px;
 }
 
 .review {
-  display: flex;
-  flex-direction: column;
-  max-width: 900px;
-  transition: transform 0.3s ease;
+  text-align: center;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 40px;
+}
+
+.review:last-child {
+  border-bottom: none;
+}
+
+.stars {
+  font-size: 1.5rem;
+  margin-bottom: 5px;
+  color: #f1c40f;
+}
+
+.review h3 {
+  margin: 0;
+  font-weight: 500;
+  color: #222;
+}
+
+.quote {
+  font-style: italic;
+  color: #333;
+  margin-top: 8px;
+}
 }
 
 .review.left {
