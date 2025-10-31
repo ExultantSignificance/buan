@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Book Now</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Simple hamburger styles */
+    .hamburger {
+      position: absolute;
+      top: 1.2rem;
+      left: 1rem;
+      cursor: pointer;
+      z-index: 20;
+    }
+
+    .hamburger div {
+      width: 25px;
+      height: 3px;
+      background-color: #111;
+      margin: 5px 0;
+      transition: all 0.3s ease;
+    }
+
+    .off-screen-menu {
+      position: fixed;
+      top: 0;
+      right: -100%;
+      width: 60%;
+      height: 100%;
+      background: white;
+      box-shadow: -2px 0 6px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: right 0.3s ease-in-out;
+      z-index: 15;
+    }
+
+    .off-screen-menu.active {
+      right: 0;
+    }
+
+    .off-screen-menu a {
+      text-decoration: none;
+      color: #111;
+      font-size: 1.2rem;
+      margin: 1rem 0;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+  </nav>
+
+  <main>
+  </main>
+
+  <footer class="normal-footer">
+    <p>© 2025 Buan Tutoring. All rights reserved.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
