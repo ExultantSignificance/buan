@@ -1,6 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
   const revealElements = document.querySelectorAll(".review, .about");
-
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
@@ -17,4 +16,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const rect = el.getBoundingClientRect();
     if (rect.top < window.innerHeight) el.classList.add("visible");
   });
+});
+
+// Hamburger menu toggle
+document.addEventListener('DOMContentLoaded', () => {
+  const hamburger = document.getElementById('hamburger');
+  const menu = document.getElementById('menu');
+
+  if (hamburger && menu) {
+    hamburger.addEventListener('click', () => {
+      menu.classList.toggle('active');
+    });
+  }
 });
