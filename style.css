@@ -252,6 +252,86 @@ main {
   letter-spacing: 0.5px;
 }
 
+/* ---------- Book now page ---------- */
+/* Header */
+.site-header {
+  background: white;
+  border-bottom: 1px solid #eee;
+  text-align: center;
+  padding: 1.2rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.site-header h1 {
+  font-weight: 400;
+  font-size: 1.2rem;
+  letter-spacing: 0.5px;
+  text-transform: lowercase;
+  margin: 0;
+}
+
+/* Main layout */
+.book-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 70px); /* full viewport minus header */
+}
+
+.book-option {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  text-decoration: none;
+  overflow: hidden;
+  perspective: 800px; /* for 3D tilt effect */
+}
+
+/* Background images (temporary until JS replaces them) */
+.book-option:nth-child(1) {
+  background: url("images/Picture1.jpg") center/cover no-repeat;
+}
+
+.book-option:nth-child(2) {
+  background: url("images/Picture2.jpg") center/cover no-repeat;
+}
+
+.book-option .overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  transition: background 0.3s ease;
+}
+
+.book-option h2 {
+  position: relative;
+  font-size: 2.2rem;
+  font-weight: 500;
+  text-align: center;
+  letter-spacing: 2px;
+  z-index: 2;
+  transition: transform 0.2s ease, text-shadow 0.3s ease;
+}
+
+/* Slight darken when hovering */
+.book-option:hover .overlay {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.book-option .background {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.05);
+  transition: transform 0.15s ease-out, background-position 0.15s ease-out;
+  z-index: 0;
+}
+
 /* ---------- Animation Styles ---------- */
 @keyframes slideFadeInLeft {
   0% {
@@ -321,3 +401,5 @@ header, main, footer {
   position: relative;
   z-index: 1;
 }
+
+
