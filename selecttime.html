@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Select Time</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="no-background">
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+  </nav>
+
+  <main class="select-time-page" data-select-time-page>
+    <section class="select-time-container">
+      <h2 class="select-time-title">select time.</h2>
+      <p class="select-time-helper" data-select-time-helper>Start with the earliest date and pick your one-hour slots.</p>
+      <div class="select-time-list" data-date-list tabindex="0"></div>
+      <p class="select-time-empty" data-empty-state hidden>
+        No dates selected yet. <a href="standardbooking.html">Go back to reserve dates.</a>
+      </p>
+      <div class="select-time-actions">
+        <button class="booking-primary-button" type="button" data-choose-subjects disabled>
+          choose subjects
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

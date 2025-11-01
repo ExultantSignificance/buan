@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Checkout</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="no-background checkout-page">
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+  </nav>
+
+  <main class="checkout-container">
+    <section class="checkout-card">
+      <h2>Stripe checkout coming soon.</h2>
+      <p>
+        Your selected dates, times, and subjects are saved on this device. When you're ready to
+        connect Stripe, create a Checkout Session on your server and redirect the button below to it.
+      </p>
+      <a class="booking-primary-button" href="https://dashboard.stripe.com/test/payments" target="_blank" rel="noopener">
+        Review Stripe docs
+      </a>
+      <p class="checkout-note">
+        Tip: generate a server-side endpoint that reads your booking data, creates a Checkout Session with the right price IDs, and returns the Stripe redirect URL.
+      </p>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
