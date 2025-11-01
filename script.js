@@ -168,13 +168,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectedDates = new Set();
   const weekSelections = new Map();
 
+  const formatDateKey = date => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const getWeekKey = date => {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
     const day = d.getDay();
     const diffToMonday = (day + 6) % 7;
     d.setDate(d.getDate() - diffToMonday);
-    return d.toISOString().split("T")[0];
+    return formatDateKey(d);
   };
 
   const validStoredSelections = new Set();
@@ -245,7 +252,7 @@ document.addEventListener("DOMContentLoaded", () => {
     dayEl.className = "calendar-day";
     dayEl.textContent = date.getDate();
     dayEl.setAttribute("aria-pressed", "false");
-    const iso = date.toISOString().split("T")[0];
+    const iso = formatDateKey(date);
     dayEl.dataset.date = iso;
     const weekKey = getWeekKey(date);
     dayEl.dataset.week = weekKey;
