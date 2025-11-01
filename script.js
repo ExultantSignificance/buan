@@ -1,5 +1,65 @@
 const BOOKING_STORAGE_KEY = "buan.bookingState";
 
+const SUBJECT_OPTIONS = [
+  { value: "specialist-methods", label: "Specialist, Methods" },
+  { value: "physics", label: "Physics" },
+  { value: "chemistry", label: "Chemistry" },
+  { value: "general-english", label: "General English" },
+  { value: "grade-7-9", label: "Grade 7-9" },
+];
+
+const SUBJECT_LABEL_BY_VALUE = new Map(
+  SUBJECT_OPTIONS.map(option => [option.value, option.label])
+);
+
+const SUBJECT_VALUE_SET = new Set(SUBJECT_OPTIONS.map(option => option.value));
+
+const pruneSubjects = (subjects, times) => {
+  const safeSubjects = subjects && typeof subjects === "object" && subjects !== null ? subjects : {};
+  const safeTimes = times && typeof times === "object" && times !== null ? times : {};
+  const cleaned = {};
+
+  Object.keys(safeTimes).forEach(dateKey => {
+    const timeList = Array.isArray(safeTimes[dateKey]) ? Array.from(new Set(safeTimes[dateKey])) : [];
+    if (!timeList.length) return;
+    const allowedTimes = new Set(timeList);
+    const source = safeSubjects[dateKey];
+    if (!source || typeof source !== "object") return;
+
+    const filtered = {};
+    Object.keys(source).forEach(timeKey => {
+      const value = source[timeKey];
+      if (allowedTimes.has(timeKey) && typeof value === "string" && SUBJECT_VALUE_SET.has(value)) {
+        filtered[timeKey] = value;
+      }
+    });
+
+    if (Object.keys(filtered).length) {
+      cleaned[dateKey] = filtered;
+    }
+  });
+
+  return cleaned;
+};
+
+const subjectsEqual = (a, b) => {
+  const aKeys = Object.keys(a || {});
+  const bKeys = Object.keys(b || {});
+  if (aKeys.length !== bKeys.length) return false;
+  for (const key of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+    const aInner = a[key];
+    const bInner = b[key];
+    const aInnerKeys = Object.keys(aInner || {});
+    const bInnerKeys = Object.keys(bInner || {});
+    if (aInnerKeys.length !== bInnerKeys.length) return false;
+    for (const innerKey of aInnerKeys) {
+      if (aInner[innerKey] !== bInner[innerKey]) return false;
+    }
+  }
+  return true;
+};
+
 const readBookingState = () => {
   try {
     const raw = localStorage.getItem(BOOKING_STORAGE_KEY);
@@ -96,6 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
     bookingState && typeof bookingState.times === "object" && bookingState.times !== null
       ? { ...bookingState.times }
       : {};
+  let storedSubjects = pruneSubjects(bookingState.subjects, storedTimes);
   const storedDateList = Array.isArray(bookingState.dates) ? [...bookingState.dates] : [];
 
   weekdays.forEach(label => {
@@ -143,7 +204,8 @@ document.addEventListener("DOMContentLoaded", () => {
         delete storedTimes[dateKey];
       }
     });
-    persistBookingState({ dates: orderedDates, times: storedTimes });
+    storedSubjects = pruneSubjects(storedSubjects, storedTimes);
+    persistBookingState({ dates: orderedDates, times: storedTimes, subjects: storedSubjects });
   };
 
   const updateWeekRestrictions = () => {
@@ -267,6 +329,7 @@ document.addEventListener("DOMContentLoaded", () => {
     bookingState && typeof bookingState.times === "object" && bookingState.times !== null
       ? { ...bookingState.times }
       : {};
+  const storedSubjects = pruneSubjects(bookingState.subjects, storedTimes);
 
   if (!dates.length) {
     list.classList.add("select-time-list--empty");
@@ -282,6 +345,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const bookingData = {
     dates,
     times: {},
+    subjects: {},
   };
 
   dates.forEach(dateKey => {
@@ -292,6 +356,8 @@ document.addEventListener("DOMContentLoaded", () => {
       bookingData.times[dateKey] = unique;
     }
   });
+
+  bookingData.subjects = pruneSubjects(storedSubjects, bookingData.times);
 
   const buildTimeBlocks = () => {
     const hours = [];
@@ -312,8 +378,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const ensureArray = value => (Array.isArray(value) ? value : []);
 
+  const syncSubjects = () => {
+    const cleaned = pruneSubjects(bookingData.subjects, bookingData.times);
+    const changed = !subjectsEqual(cleaned, bookingData.subjects);
+    bookingData.subjects = cleaned;
+    return changed;
+  };
+
   const saveState = () => {
-    persistBookingState({ dates: bookingData.dates, times: bookingData.times });
+    const subjectsChanged = syncSubjects();
+    persistBookingState({
+      dates: bookingData.dates,
+      times: bookingData.times,
+      subjects: bookingData.subjects,
+    });
+    return subjectsChanged;
   };
 
   saveState();
@@ -370,6 +449,10 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }
     });
+
+    if (syncSubjects()) {
+      stateModified = true;
+    }
 
     return stateModified;
   };
@@ -509,4 +592,314 @@ document.addEventListener("DOMContentLoaded", () => {
     window.requestAnimationFrame(updateFocusedCard);
   });
   window.addEventListener("resize", updateFocusedCard);
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  const subjectsPage = document.querySelector("[data-subjects-page]");
+  if (!subjectsPage) return;
+
+  const list = subjectsPage.querySelector("[data-subject-list]");
+  const helper = subjectsPage.querySelector("[data-subjects-helper]");
+  const emptyState = subjectsPage.querySelector("[data-subjects-empty]");
+  const summary = subjectsPage.querySelector("[data-subjects-summary]");
+  const summaryList = subjectsPage.querySelector("[data-subjects-summary-list]");
+  const checkoutButton = subjectsPage.querySelector("[data-subjects-checkout]");
+
+  if (!list || !checkoutButton) return;
+
+  const bookingState = readBookingState();
+  const dates = Array.isArray(bookingState.dates) ? [...bookingState.dates].sort() : [];
+  const storedTimes =
+    bookingState && typeof bookingState.times === "object" && bookingState.times !== null
+      ? bookingState.times
+      : {};
+  const storedSubjects = pruneSubjects(bookingState.subjects, storedTimes);
+
+  const bookingData = {
+    dates,
+    times: {},
+    subjects: {},
+  };
+
+  const timeline = [];
+
+  dates.forEach(dateKey => {
+    const timeList = storedTimes[dateKey];
+    if (!Array.isArray(timeList)) return;
+    const uniqueTimes = Array.from(new Set(timeList)).sort();
+    if (!uniqueTimes.length) return;
+    bookingData.times[dateKey] = uniqueTimes;
+
+    const subjectMap = storedSubjects[dateKey] || {};
+    uniqueTimes.forEach(timeValue => {
+      timeline.push({ date: dateKey, time: timeValue });
+      const storedValue = subjectMap[timeValue];
+      if (typeof storedValue === "string" && SUBJECT_VALUE_SET.has(storedValue)) {
+        if (!bookingData.subjects[dateKey]) {
+          bookingData.subjects[dateKey] = {};
+        }
+        bookingData.subjects[dateKey][timeValue] = storedValue;
+      }
+    });
+  });
+
+  bookingData.subjects = pruneSubjects(bookingData.subjects, bookingData.times);
+
+  const totalSlots = timeline.length;
+
+  if (!totalSlots) {
+    list.classList.add("subjects-list--empty");
+    if (emptyState) {
+      emptyState.hidden = false;
+    }
+    if (helper) {
+      helper.textContent = "Choose your times first, then come back to pick subjects.";
+    }
+    if (summary) {
+      summary.hidden = true;
+    }
+    if (summaryList) {
+      summaryList.innerHTML = "";
+    }
+    checkoutButton.disabled = true;
+    checkoutButton.setAttribute("aria-disabled", "true");
+    return;
+  }
+
+  if (summary && summaryList) {
+    summary.hidden = false;
+    summaryList.innerHTML = "";
+  }
+
+  const saveState = () => {
+    bookingData.subjects = pruneSubjects(bookingData.subjects, bookingData.times);
+    persistBookingState({ dates: bookingData.dates, times: bookingData.times, subjects: bookingData.subjects });
+  };
+
+  saveState();
+
+  const cards = [];
+  const cardLookup = new Map();
+  const summaryLookup = new Map();
+  const formatterDate = new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const formatterTime = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const formatterSummaryDate = new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+
+  const keyFor = (dateKey, timeValue) => `${dateKey}|${timeValue}`;
+
+  const countCompleted = () =>
+    timeline.reduce((acc, entry) => {
+      const value =
+        bookingData.subjects[entry.date] && bookingData.subjects[entry.date][entry.time];
+      return acc + (value ? 1 : 0);
+    }, 0);
+
+  const updateProgress = () => {
+    const completed = countCompleted();
+    if (helper) {
+      if (completed === 0) {
+        helper.textContent = "Select a subject for the highlighted session.";
+      } else if (completed < totalSlots) {
+        helper.textContent = `${completed} of ${totalSlots} sessions have subjects.`;
+      } else {
+        helper.textContent = "All subjects chosen. You can continue to checkout.";
+      }
+    }
+    const ready = completed === totalSlots;
+    checkoutButton.disabled = !ready;
+    checkoutButton.setAttribute("aria-disabled", ready ? "false" : "true");
+  };
+
+  const updateSummaryItem = (dateKey, timeValue) => {
+    if (!summaryList) return;
+    const key = keyFor(dateKey, timeValue);
+    const item = summaryLookup.get(key);
+    if (!item) return;
+    const subjectDisplay = item.querySelector("[data-summary-subject]");
+    const value = bookingData.subjects[dateKey] && bookingData.subjects[dateKey][timeValue];
+    const label = value ? SUBJECT_LABEL_BY_VALUE.get(value) : null;
+    if (subjectDisplay) {
+      subjectDisplay.textContent = label || "Subject not chosen";
+    }
+    item.classList.toggle("subjects-summary__item--complete", Boolean(label));
+  };
+
+  const updateCardCompletion = card => {
+    const dateKey = card.dataset.date;
+    const timeValue = card.dataset.time;
+    const current =
+      bookingData.subjects[dateKey] && bookingData.subjects[dateKey][timeValue];
+    card.classList.toggle("subject-card--complete", Boolean(current));
+    updateSummaryItem(dateKey, timeValue);
+  };
+
+  const updateFocusedCard = () => {
+    const listRect = list.getBoundingClientRect();
+    const center = listRect.top + listRect.height / 2;
+    let activeCard = cards[0];
+    let minDistance = Infinity;
+    cards.forEach(card => {
+      const rect = card.getBoundingClientRect();
+      const cardCenter = rect.top + rect.height / 2;
+      const distance = Math.abs(cardCenter - center);
+      if (distance < minDistance) {
+        minDistance = distance;
+        activeCard = card;
+      }
+    });
+    cards.forEach(card => card.classList.toggle("focused", card === activeCard));
+    const activeKey =
+      activeCard && activeCard.dataset.date && activeCard.dataset.time
+        ? keyFor(activeCard.dataset.date, activeCard.dataset.time)
+        : null;
+    summaryLookup.forEach((item, key) => {
+      item.classList.toggle("subjects-summary__item--focused", key === activeKey);
+    });
+  };
+
+  const handleSubjectChange = event => {
+    const input = event.target;
+    if (input.type !== "radio") return;
+    const dateKey = input.dataset.date;
+    const timeValue = input.dataset.time;
+    const subjectValue = input.value;
+    if (!dateKey || !timeValue || !SUBJECT_VALUE_SET.has(subjectValue)) return;
+
+    if (!bookingData.subjects[dateKey]) {
+      bookingData.subjects[dateKey] = {};
+    }
+    bookingData.subjects[dateKey][timeValue] = subjectValue;
+
+    const card = cardLookup.get(keyFor(dateKey, timeValue));
+    if (card) {
+      updateCardCompletion(card);
+    } else {
+      updateSummaryItem(dateKey, timeValue);
+    }
+
+    saveState();
+    updateProgress();
+  };
+
+  timeline.forEach((entry, index) => {
+    if (summaryList) {
+      const summaryItem = document.createElement("li");
+      summaryItem.className = "subjects-summary__item";
+      const summaryKey = keyFor(entry.date, entry.time);
+      summaryItem.dataset.summaryKey = summaryKey;
+
+      const summarySequence = document.createElement("span");
+      summarySequence.className = "subjects-summary__sequence";
+      summarySequence.textContent = `session ${index + 1}`;
+
+      const summaryDatetime = document.createElement("span");
+      summaryDatetime.className = "subjects-summary__datetime";
+      summaryDatetime.textContent = `${formatterSummaryDate.format(
+        new Date(`${entry.date}T00:00:00`)
+      )} · ${formatterTime.format(new Date(`1970-01-01T${entry.time}:00`))}`;
+
+      const summarySubject = document.createElement("span");
+      summarySubject.className = "subjects-summary__subject";
+      summarySubject.dataset.summarySubject = "";
+      summarySubject.textContent = "Subject not chosen";
+
+      summaryItem.appendChild(summarySequence);
+      summaryItem.appendChild(summaryDatetime);
+      summaryItem.appendChild(summarySubject);
+
+      summaryList.appendChild(summaryItem);
+      summaryLookup.set(summaryKey, summaryItem);
+    }
+
+    const card = document.createElement("article");
+    card.className = "subject-card";
+    card.dataset.subjectCard = "";
+    card.dataset.date = entry.date;
+    card.dataset.time = entry.time;
+
+    const header = document.createElement("header");
+    header.className = "subject-card__header";
+
+    const sequence = document.createElement("span");
+    sequence.className = "subject-card__sequence";
+    sequence.textContent = `session ${index + 1} of ${totalSlots}`;
+
+    const dateEl = document.createElement("p");
+    dateEl.className = "subject-card__date";
+    dateEl.textContent = formatterDate.format(new Date(`${entry.date}T00:00:00`));
+
+    const timeEl = document.createElement("p");
+    timeEl.className = "subject-card__time";
+    timeEl.textContent = formatterTime.format(new Date(`1970-01-01T${entry.time}:00`));
+
+    header.appendChild(sequence);
+    header.appendChild(dateEl);
+    header.appendChild(timeEl);
+
+    const prompt = document.createElement("p");
+    prompt.className = "subject-card__prompt";
+    prompt.textContent = "Choose the subject for this session.";
+
+    const options = document.createElement("div");
+    options.className = "subject-card__options";
+
+    const storedValue =
+      bookingData.subjects[entry.date] && bookingData.subjects[entry.date][entry.time];
+
+    SUBJECT_OPTIONS.forEach(option => {
+      const label = document.createElement("label");
+      label.className = "subject-option";
+
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = `${entry.date}-${entry.time}`;
+      input.value = option.value;
+      input.dataset.date = entry.date;
+      input.dataset.time = entry.time;
+      input.checked = storedValue === option.value;
+      input.addEventListener("change", handleSubjectChange);
+
+      const text = document.createElement("span");
+      text.textContent = option.label;
+
+      label.appendChild(input);
+      label.appendChild(text);
+      options.appendChild(label);
+    });
+
+    card.appendChild(header);
+    card.appendChild(prompt);
+    card.appendChild(options);
+
+    list.appendChild(card);
+    cards.push(card);
+    cardLookup.set(keyFor(entry.date, entry.time), card);
+    updateCardCompletion(card);
+  });
+
+  updateProgress();
+  updateFocusedCard();
+
+  list.addEventListener("scroll", () => {
+    window.requestAnimationFrame(updateFocusedCard);
+  });
+  window.addEventListener("resize", updateFocusedCard);
+
+  checkoutButton.addEventListener("click", () => {
+    if (checkoutButton.disabled) return;
+    saveState();
+    window.location.href = "checkout.html";
+  });
 });
