@@ -77,7 +77,15 @@ const persistBookingState = state => {
   }
 };
 
-document.addEventListener("DOMContentLoaded", () => {
+const runWhenReady = callback => {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", callback);
+  } else {
+    callback();
+  }
+};
+
+runWhenReady(() => {
   const revealElements = document.querySelectorAll(".review, .about");
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {
@@ -98,7 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // Hamburger menu toggle
-document.addEventListener('DOMContentLoaded', () => {
+runWhenReady(() => {
   const hamburger = document.getElementById('hamburger');
   const menu = document.getElementById('menu');
 
@@ -109,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-document.addEventListener("DOMContentLoaded", () => {
+runWhenReady(() => {
   const options = document.querySelectorAll(".book-option");
 
   options.forEach(option => {
@@ -137,7 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-document.addEventListener("DOMContentLoaded", () => {
+runWhenReady(() => {
   const calendarPage = document.querySelector("[data-calendar]");
   if (!calendarPage) return;
 
@@ -168,13 +176,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const selectedDates = new Set();
   const weekSelections = new Map();
 
+  const formatDateKey = date => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const getWeekKey = date => {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
     const day = d.getDay();
     const diffToMonday = (day + 6) % 7;
     d.setDate(d.getDate() - diffToMonday);
-    return d.toISOString().split("T")[0];
+    return formatDateKey(d);
   };
 
   const validStoredSelections = new Set();
@@ -245,7 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
     dayEl.className = "calendar-day";
     dayEl.textContent = date.getDate();
     dayEl.setAttribute("aria-pressed", "false");
-    const iso = date.toISOString().split("T")[0];
+    const iso = formatDateKey(date);
     dayEl.dataset.date = iso;
     const weekKey = getWeekKey(date);
     dayEl.dataset.week = weekKey;
@@ -309,7 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-document.addEventListener("DOMContentLoaded", () => {
+runWhenReady(() => {
   const selectTimePage = document.querySelector("[data-select-time-page]");
   if (!selectTimePage) return;
 
@@ -590,14 +605,14 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("resize", updateFocusedCard);
 });
 
-document.addEventListener("DOMContentLoaded", () => {
+runWhenReady(() => {
   const subjectsPage = document.querySelector("[data-subjects-page]");
   if (!subjectsPage) return;
 
   const list = subjectsPage.querySelector("[data-subject-list]");
   const helper = subjectsPage.querySelector("[data-subjects-helper]");
   const emptyState = subjectsPage.querySelector("[data-subjects-empty]");
-  const checkoutButton = subjectsPage.querySelector("[data-subjects-checkout]");
+  const checkoutButton = document.querySelector("[data-subjects-checkout]");
 
   if (!list || !checkoutButton) return;
 
