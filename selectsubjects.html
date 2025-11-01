@@ -33,21 +33,18 @@
         You need to choose dates and times first. <a href="selecttime.html">Go back to select times.</a>
       </p>
       <div class="select-subjects-actions">
+        <button class="booking-step-button" type="button" data-nav-back>
+          previous
+        </button>
         <button class="booking-primary-button" type="button" data-go-checkout disabled>
           go to checkout
+        </button>
+        <button class="booking-step-button" type="button" data-nav-forward>
+          forward
         </button>
       </div>
     </section>
   </main>
-
-  <nav class="booking-corner-nav" aria-label="booking step navigation">
-    <a class="booking-corner-button booking-corner-button--previous" href="selecttime.html" data-nav-back>
-      previous
-    </a>
-    <a class="booking-corner-button booking-corner-button--forward" href="standardbooking.html" data-nav-forward>
-      forward
-    </a>
-  </nav>
 
   <script src="script.js"></script>
 </body>
