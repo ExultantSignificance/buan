@@ -8,10 +8,6 @@ const SUBJECT_OPTIONS = [
   { value: "grade-7-9", label: "Grade 7-9" },
 ];
 
-const SUBJECT_LABEL_BY_VALUE = new Map(
-  SUBJECT_OPTIONS.map(option => [option.value, option.label])
-);
-
 const SUBJECT_VALUE_SET = new Set(SUBJECT_OPTIONS.map(option => option.value));
 
 const pruneSubjects = (subjects, times) => {
@@ -601,8 +597,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const list = subjectsPage.querySelector("[data-subject-list]");
   const helper = subjectsPage.querySelector("[data-subjects-helper]");
   const emptyState = subjectsPage.querySelector("[data-subjects-empty]");
-  const summary = subjectsPage.querySelector("[data-subjects-summary]");
-  const summaryList = subjectsPage.querySelector("[data-subjects-summary-list]");
   const checkoutButton = subjectsPage.querySelector("[data-subjects-checkout]");
 
   if (!list || !checkoutButton) return;
@@ -655,20 +649,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (helper) {
       helper.textContent = "Choose your times first, then come back to pick subjects.";
     }
-    if (summary) {
-      summary.hidden = true;
-    }
-    if (summaryList) {
-      summaryList.innerHTML = "";
-    }
     checkoutButton.disabled = true;
     checkoutButton.setAttribute("aria-disabled", "true");
     return;
-  }
-
-  if (summary && summaryList) {
-    summary.hidden = false;
-    summaryList.innerHTML = "";
   }
 
   const saveState = () => {
@@ -680,7 +663,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const cards = [];
   const cardLookup = new Map();
-  const summaryLookup = new Map();
   const formatterDate = new Intl.DateTimeFormat(undefined, {
     weekday: "long",
     month: "long",
@@ -690,11 +672,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const formatterTime = new Intl.DateTimeFormat(undefined, {
     hour: "numeric",
     minute: "2-digit",
-  });
-  const formatterSummaryDate = new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
   });
 
   const keyFor = (dateKey, timeValue) => `${dateKey}|${timeValue}`;
@@ -722,27 +699,12 @@ document.addEventListener("DOMContentLoaded", () => {
     checkoutButton.setAttribute("aria-disabled", ready ? "false" : "true");
   };
 
-  const updateSummaryItem = (dateKey, timeValue) => {
-    if (!summaryList) return;
-    const key = keyFor(dateKey, timeValue);
-    const item = summaryLookup.get(key);
-    if (!item) return;
-    const subjectDisplay = item.querySelector("[data-summary-subject]");
-    const value = bookingData.subjects[dateKey] && bookingData.subjects[dateKey][timeValue];
-    const label = value ? SUBJECT_LABEL_BY_VALUE.get(value) : null;
-    if (subjectDisplay) {
-      subjectDisplay.textContent = label || "Subject not chosen";
-    }
-    item.classList.toggle("subjects-summary__item--complete", Boolean(label));
-  };
-
   const updateCardCompletion = card => {
     const dateKey = card.dataset.date;
     const timeValue = card.dataset.time;
     const current =
       bookingData.subjects[dateKey] && bookingData.subjects[dateKey][timeValue];
     card.classList.toggle("subject-card--complete", Boolean(current));
-    updateSummaryItem(dateKey, timeValue);
   };
 
   const updateFocusedCard = () => {
@@ -760,13 +722,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     cards.forEach(card => card.classList.toggle("focused", card === activeCard));
-    const activeKey =
-      activeCard && activeCard.dataset.date && activeCard.dataset.time
-        ? keyFor(activeCard.dataset.date, activeCard.dataset.time)
-        : null;
-    summaryLookup.forEach((item, key) => {
-      item.classList.toggle("subjects-summary__item--focused", key === activeKey);
-    });
   };
 
   const handleSubjectChange = event => {
@@ -785,8 +740,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const card = cardLookup.get(keyFor(dateKey, timeValue));
     if (card) {
       updateCardCompletion(card);
-    } else {
-      updateSummaryItem(dateKey, timeValue);
     }
 
     saveState();
@@ -794,35 +747,6 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   timeline.forEach((entry, index) => {
-    if (summaryList) {
-      const summaryItem = document.createElement("li");
-      summaryItem.className = "subjects-summary__item";
-      const summaryKey = keyFor(entry.date, entry.time);
-      summaryItem.dataset.summaryKey = summaryKey;
-
-      const summarySequence = document.createElement("span");
-      summarySequence.className = "subjects-summary__sequence";
-      summarySequence.textContent = `session ${index + 1}`;
-
-      const summaryDatetime = document.createElement("span");
-      summaryDatetime.className = "subjects-summary__datetime";
-      summaryDatetime.textContent = `${formatterSummaryDate.format(
-        new Date(`${entry.date}T00:00:00`)
-      )} · ${formatterTime.format(new Date(`1970-01-01T${entry.time}:00`))}`;
-
-      const summarySubject = document.createElement("span");
-      summarySubject.className = "subjects-summary__subject";
-      summarySubject.dataset.summarySubject = "";
-      summarySubject.textContent = "Subject not chosen";
-
-      summaryItem.appendChild(summarySequence);
-      summaryItem.appendChild(summaryDatetime);
-      summaryItem.appendChild(summarySubject);
-
-      summaryList.appendChild(summaryItem);
-      summaryLookup.set(summaryKey, summaryItem);
-    }
-
     const card = document.createElement("article");
     card.className = "subject-card";
     card.dataset.subjectCard = "";
