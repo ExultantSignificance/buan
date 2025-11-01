@@ -522,6 +522,7 @@ header, main, footer {
 
 .select-time-button,
 .booking-primary-button {
+.select-time-button {
   padding: 0.9rem 3rem;
   font-size: 1rem;
   font-weight: 600;
@@ -537,6 +538,7 @@ header, main, footer {
 
 .select-time-button:disabled,
 .booking-primary-button:disabled {
+.select-time-button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
   box-shadow: none;
@@ -544,6 +546,7 @@ header, main, footer {
 
 .select-time-button:not(:disabled):hover,
 .booking-primary-button:not(:disabled):hover {
+.select-time-button:not(:disabled):hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 24px rgba(17, 17, 17, 0.18);
 }

@@ -194,6 +194,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     pruneSubjectState(storedSubjects, orderedDates, storedTimes);
     persistBookingState({ dates: orderedDates, times: storedTimes, subjects: storedSubjects });
+      }
+    });
+    persistBookingState({ dates: orderedDates, times: storedTimes });
   };
 
   const updateWeekRestrictions = () => {
@@ -388,6 +391,8 @@ document.addEventListener("DOMContentLoaded", () => {
       times: bookingData.times,
       subjects: bookingData.subjects,
     });
+  const saveState = () => {
+    persistBookingState({ dates: bookingData.dates, times: bookingData.times });
   };
 
   saveState();
@@ -513,6 +518,8 @@ document.addEventListener("DOMContentLoaded", () => {
           delete bookingData.subjects[dateKey];
         }
       }
+    } else {
+      bookingData.times[dateKey] = Array.from(selections).sort();
     }
 
     saveState();
