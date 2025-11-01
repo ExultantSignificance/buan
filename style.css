@@ -822,6 +822,7 @@ header, main, footer {
   color: #fff;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  text-decoration: none;
 }
 
 .select-time-next__button:hover,
