@@ -1,7 +1,8 @@
 const BOOKING_STORAGE_KEY = "buan.bookingState";
 
 const SUBJECT_OPTIONS = [
-  { value: "specialist-methods", label: "Specialist, Methods" },
+  { value: "specialist-mathematics", label: "Specialist Mathematics" },
+  { value: "mathematical-methods", label: "Mathematical Methods" },
   { value: "physics", label: "Physics" },
   { value: "chemistry", label: "Chemistry" },
   { value: "general-english", label: "General English" },
