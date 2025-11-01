@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Reserve a Date</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="no-background">
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+  </nav>
+
+  <main class="calendar-page" data-calendar>
+    <section class="calendar-container">
+      <h2 class="calendar-title">reserve a date.</h2>
+      <p class="calendar-subtitle">Select up to two days per week within the next four weeks.</p>
+      <div class="calendar-body">
+        <div class="calendar-weekdays" data-calendar-weekdays></div>
+        <div class="calendar-grid" data-calendar-grid></div>
+      </div>
+      <p class="calendar-helper" data-calendar-helper>Choose a day to continue.</p>
+    </section>
+  </main>
+
+  <footer class="calendar-footer">
+    <button class="select-time-button" type="button" data-select-time disabled>Select Time</button>
+  </footer>
+
+  <nav class="booking-corner-nav" aria-label="booking step navigation">
+    <a class="booking-corner-button booking-corner-button--previous" href="selectsubjects.html">
+      previous
+    </a>
+    <a class="booking-corner-button booking-corner-button--forward" href="selecttime.html">
+      forward
+    </a>
+  </nav>
+
+  <script src="script.js"></script>
+</body>
+</html>

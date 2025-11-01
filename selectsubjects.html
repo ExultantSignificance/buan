@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Choose Subjects</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="no-background">
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+  </nav>
+
+  <main class="select-subjects-page" data-select-subjects-page>
+    <section class="select-subjects-container">
+      <h2 class="select-subjects-title">choose subjects.</h2>
+      <p class="select-subjects-helper" data-subject-helper>
+        Assign a subject to each time you selected.
+      </p>
+      <div class="select-subjects-list" data-subject-list tabindex="0"></div>
+      <p class="select-subjects-empty" data-subject-empty hidden>
+        You need to choose dates and times first. <a href="selecttime.html">Go back to select times.</a>
+      </p>
+      <div class="select-subjects-actions">
+        <button class="booking-primary-button" type="button" data-go-checkout disabled>
+          go to checkout
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="booking-corner-nav" aria-label="booking step navigation">
+    <a class="booking-corner-button booking-corner-button--previous" href="selecttime.html" data-nav-back>
+      previous
+    </a>
+    <a class="booking-corner-button booking-corner-button--forward" href="standardbooking.html" data-nav-forward>
+      forward
+    </a>
+  </nav>
+
+  <script src="script.js"></script>
+</body>
+</html>
