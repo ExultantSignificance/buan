@@ -86,6 +86,333 @@ const runWhenReady = callback => {
   }
 };
 
+const AUTH_STORAGE_KEY = "buan.authSession";
+
+const auth = (() => {
+  const listeners = new Set();
+  let authState = { token: null, user: null };
+
+  const parseStoredState = value => {
+    if (!value) return { token: null, user: null };
+    try {
+      const parsed = JSON.parse(value);
+      if (!parsed || typeof parsed !== "object") return { token: null, user: null };
+      const token = typeof parsed.token === "string" ? parsed.token : null;
+      const user = parsed.user && typeof parsed.user === "object" ? parsed.user : null;
+      return { token, user };
+    } catch (error) {
+      console.warn("Unable to parse stored auth session", error);
+      return { token: null, user: null };
+    }
+  };
+
+  const readInitialState = () => {
+    try {
+      const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (!raw) return;
+      authState = parseStoredState(raw);
+    } catch (error) {
+      console.warn("Unable to read stored auth session", error);
+    }
+  };
+
+  const persistState = () => {
+    try {
+      if (!authState.token && !authState.user) {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      } else {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authState));
+      }
+    } catch (error) {
+      console.warn("Unable to persist auth session", error);
+    }
+  };
+
+  const notify = () => {
+    listeners.forEach(listener => {
+      try {
+        listener({ ...authState });
+      } catch (error) {
+        console.error("Auth listener error", error);
+      }
+    });
+  };
+
+  const setState = nextState => {
+    authState = { token: nextState.token ?? null, user: nextState.user ?? null };
+    persistState();
+    notify();
+  };
+
+  const request = async (endpoint, payload) => {
+    try {
+      const response = await fetch(`/api/auth/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+      const isJson = contentType.includes("application/json");
+      const body = isJson ? await response.json() : await response.text();
+
+      if (!response.ok) {
+        const message = body && typeof body === "object" && body.message
+          ? body.message
+          : typeof body === "string" && body.trim()
+            ? body.trim()
+            : "Unable to complete the request. Please try again.";
+        throw new Error(message);
+      }
+
+      const token = body && typeof body === "object"
+        ? (typeof body.token === "string"
+          ? body.token
+          : typeof body.sessionToken === "string"
+            ? body.sessionToken
+            : null)
+        : null;
+      const user = body && typeof body === "object" && body.user && typeof body.user === "object"
+        ? body.user
+        : null;
+
+      setState({ token, user });
+      return { token, user };
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error("We couldn't reach the server. Check your connection and try again.");
+      }
+      throw error;
+    }
+  };
+
+  const readInitialUser = () => {
+    if (authState.token || authState.user) {
+      notify();
+    }
+  };
+
+  const signUp = async credentials => {
+    return request("signup", credentials);
+  };
+
+  const signIn = async credentials => {
+    return request("signin", credentials);
+  };
+
+  const signOut = () => {
+    setState({ token: null, user: null });
+  };
+
+  const getCurrentUser = () => authState.user;
+  const getSessionToken = () => authState.token;
+
+  const subscribe = callback => {
+    if (typeof callback !== "function") return () => {};
+    listeners.add(callback);
+    callback({ ...authState });
+    return () => listeners.delete(callback);
+  };
+
+  readInitialState();
+  readInitialUser();
+
+  return { signUp, signIn, signOut, getCurrentUser, getSessionToken, subscribe };
+})();
+
+const AUTH_DEFAULT_REDIRECT = "booknow.html";
+
+const ensureAuthMessageElement = form => {
+  let message = form.querySelector("[data-auth-message]");
+  if (!message) {
+    message = document.createElement("p");
+    message.dataset.authMessage = form.dataset.authForm || "";
+    message.className = "auth-message";
+    message.setAttribute("aria-live", "polite");
+    message.hidden = true;
+    form.appendChild(message);
+  }
+  return message;
+};
+
+const setAuthMessage = (messageEl, type, text) => {
+  if (!messageEl) return;
+  if (type === "error") {
+    messageEl.setAttribute("role", "alert");
+    messageEl.setAttribute("aria-live", "assertive");
+  } else {
+    messageEl.setAttribute("role", "status");
+    messageEl.setAttribute("aria-live", "polite");
+  }
+  messageEl.dataset.authStatus = type || "";
+  messageEl.textContent = text || "";
+  messageEl.hidden = !text;
+};
+
+const toggleFormLoading = (form, submitButton, isLoading) => {
+  if (submitButton) {
+    submitButton.disabled = Boolean(isLoading);
+    if (isLoading) {
+      submitButton.dataset.loading = "true";
+    } else {
+      delete submitButton.dataset.loading;
+    }
+  }
+  form.classList.toggle("is-loading", Boolean(isLoading));
+};
+
+const getFieldValue = (form, name) => {
+  const field = form.elements.namedItem(name);
+  if (!field) return "";
+  return typeof field.value === "string" ? field.value.trim() : "";
+};
+
+runWhenReady(() => {
+  const nav = document.querySelector("nav.off-screen-menu");
+  if (!nav) return;
+
+  let status = nav.querySelector("[data-auth-status-indicator]");
+  if (!status) {
+    status = document.createElement("span");
+    status.dataset.authStatusIndicator = "";
+    status.className = "auth-status";
+    status.setAttribute("aria-live", "polite");
+    nav.appendChild(status);
+  }
+
+  let signOutButton = nav.querySelector("[data-auth-signout]");
+  if (!signOutButton) {
+    signOutButton = document.createElement("button");
+    signOutButton.type = "button";
+    signOutButton.textContent = "Sign Out";
+    signOutButton.className = "auth-signout";
+    signOutButton.dataset.authSignout = "";
+    signOutButton.style.display = "none";
+    nav.appendChild(signOutButton);
+  }
+
+  signOutButton.addEventListener("click", () => {
+    auth.signOut();
+  });
+
+  const signInLink = nav.querySelector('a[href="signin.html"]');
+  const signUpLink = nav.querySelector('a[href="signup.html"]');
+
+  auth.subscribe(({ user }) => {
+    if (status) {
+      status.textContent = user
+        ? `Signed in as ${user.name || user.email || "student"}.`
+        : "You're browsing as a guest.";
+      status.style.display = "block";
+    }
+
+    if (signInLink) {
+      signInLink.hidden = Boolean(user);
+    }
+
+    if (signUpLink) {
+      signUpLink.hidden = Boolean(user);
+    }
+
+    if (signOutButton) {
+      signOutButton.style.display = user ? "block" : "none";
+    }
+  });
+});
+
+runWhenReady(() => {
+  const signUpForm = document.querySelector('[data-auth-form="sign-up"]');
+  if (signUpForm) {
+    const submitButton = signUpForm.querySelector('[data-auth-submit="sign-up"]');
+    const messageEl = ensureAuthMessageElement(signUpForm);
+
+    signUpForm.addEventListener("submit", async event => {
+      event.preventDefault();
+
+      const name = getFieldValue(signUpForm, "name");
+      const email = getFieldValue(signUpForm, "email");
+      const password = getFieldValue(signUpForm, "password");
+      const yearLevel = getFieldValue(signUpForm, "yearLevel");
+
+      const errors = [];
+      if (!name) errors.push("Please provide your full name.");
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.push("Enter a valid email address.");
+      }
+      if (!password || password.length < 8) {
+        errors.push("Your password must be at least 8 characters long.");
+      }
+      if (!yearLevel) {
+        errors.push("Select your current year level.");
+      }
+
+      if (errors.length) {
+        setAuthMessage(messageEl, "error", errors[0]);
+        return;
+      }
+
+      toggleFormLoading(signUpForm, submitButton, true);
+      setAuthMessage(messageEl, "", "");
+
+      try {
+        await auth.signUp({ name, email, password, yearLevel });
+        setAuthMessage(messageEl, "success", "Account created! Redirecting...");
+        const redirect = signUpForm.dataset.redirect || AUTH_DEFAULT_REDIRECT;
+        window.setTimeout(() => {
+          window.location.href = redirect;
+        }, 600);
+      } catch (error) {
+        setAuthMessage(messageEl, "error", error.message || "Unable to sign you up. Please try again.");
+      } finally {
+        toggleFormLoading(signUpForm, submitButton, false);
+      }
+    });
+  }
+
+  const signInForm = document.querySelector('[data-auth-form="sign-in"]');
+  if (signInForm) {
+    const submitButton = signInForm.querySelector('[data-auth-submit="sign-in"]');
+    const messageEl = ensureAuthMessageElement(signInForm);
+
+    signInForm.addEventListener("submit", async event => {
+      event.preventDefault();
+
+      const email = getFieldValue(signInForm, "email");
+      const password = getFieldValue(signInForm, "password");
+
+      const errors = [];
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.push("Enter a valid email address.");
+      }
+      if (!password || password.length < 8) {
+        errors.push("Your password must be at least 8 characters long.");
+      }
+
+      if (errors.length) {
+        setAuthMessage(messageEl, "error", errors[0]);
+        return;
+      }
+
+      toggleFormLoading(signInForm, submitButton, true);
+      setAuthMessage(messageEl, "", "");
+
+      try {
+        await auth.signIn({ email, password });
+        setAuthMessage(messageEl, "success", "Welcome back! Redirecting...");
+        const redirect = signInForm.dataset.redirect || AUTH_DEFAULT_REDIRECT;
+        window.setTimeout(() => {
+          window.location.href = redirect;
+        }, 400);
+      } catch (error) {
+        setAuthMessage(messageEl, "error", error.message || "Unable to sign you in. Please try again.");
+      } finally {
+        toggleFormLoading(signInForm, submitButton, false);
+      }
+    });
+  }
+});
+
 runWhenReady(() => {
   const revealElements = document.querySelectorAll(".review, .about");
   const observer = new IntersectionObserver(entries => {
