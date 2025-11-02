@@ -78,12 +78,43 @@ const persistBookingState = state => {
   }
 };
 
+const clearBookingState = () => {
+  try {
+    localStorage.removeItem(BOOKING_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Unable to clear booking state", error);
+  }
+};
+
 const runWhenReady = callback => {
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", callback);
   } else {
     callback();
   }
+};
+
+const buildRelativeLocation = () => {
+  const path = window.location.pathname.replace(/^\//, "");
+  const search = window.location.search || "";
+  const hash = window.location.hash || "";
+  return `${path}${search}${hash}`;
+};
+
+const redirectToSignIn = () => {
+  const next = buildRelativeLocation();
+  const redirectParam = next ? `?redirect=${encodeURIComponent(next)}` : "";
+  window.location.replace(`signin.html${redirectParam}`);
+};
+
+const requireAuthForBooking = () => {
+  const hasSession = Boolean(auth.getSessionToken());
+  const hasUser = Boolean(auth.getCurrentUser());
+  if (hasSession || hasUser) {
+    return true;
+  }
+  redirectToSignIn();
+  return false;
 };
 
 const AUTH_STORAGE_KEY = "buan.authSession";
@@ -222,6 +253,7 @@ const auth = (() => {
 })();
 
 const AUTH_DEFAULT_REDIRECT = "booknow.html";
+const AUTH_SIGN_OUT_REDIRECT = "index.html";
 
 const ensureAuthMessageElement = form => {
   let message = form.querySelector("[data-auth-message]");
@@ -272,6 +304,35 @@ runWhenReady(() => {
   const nav = document.querySelector("nav.off-screen-menu");
   if (!nav) return;
 
+  const header = document.querySelector(".sticky-header");
+  let headerAccount = header ? header.querySelector("[data-auth-account]") : null;
+  if (header && !headerAccount) {
+    headerAccount = document.createElement("div");
+    headerAccount.dataset.authAccount = "";
+    headerAccount.className = "auth-account";
+    headerAccount.hidden = true;
+    header.appendChild(headerAccount);
+  }
+
+  let headerName = headerAccount ? headerAccount.querySelector("[data-auth-username]") : null;
+  if (headerAccount && !headerName) {
+    headerName = document.createElement("span");
+    headerName.dataset.authUsername = "";
+    headerName.className = "auth-account__name";
+    headerAccount.appendChild(headerName);
+  }
+
+  let headerSignOutButton = headerAccount ? headerAccount.querySelector("[data-auth-signout]") : null;
+  if (headerAccount && !headerSignOutButton) {
+    headerSignOutButton = document.createElement("button");
+    headerSignOutButton.type = "button";
+    headerSignOutButton.dataset.authSignout = "header";
+    headerSignOutButton.className = "auth-account__signout";
+    headerSignOutButton.textContent = "Sign Out";
+    headerSignOutButton.hidden = true;
+    headerAccount.appendChild(headerSignOutButton);
+  }
+
   let status = nav.querySelector("[data-auth-status-indicator]");
   if (!status) {
     status = document.createElement("span");
@@ -292,9 +353,16 @@ runWhenReady(() => {
     nav.appendChild(signOutButton);
   }
 
-  signOutButton.addEventListener("click", () => {
+  const handleSignOut = () => {
+    clearBookingState();
     auth.signOut();
-  });
+    window.location.href = AUTH_SIGN_OUT_REDIRECT;
+  };
+
+  signOutButton.addEventListener("click", handleSignOut);
+  if (headerSignOutButton) {
+    headerSignOutButton.addEventListener("click", handleSignOut);
+  }
 
   const signInLink = nav.querySelector('a[href="signin.html"]');
   const signUpLink = nav.querySelector('a[href="signup.html"]');
@@ -318,12 +386,31 @@ runWhenReady(() => {
     if (signOutButton) {
       signOutButton.style.display = user ? "block" : "none";
     }
+
+    if (headerAccount) {
+      const displayName = user ? (user.name || user.email || "student") : "";
+      headerAccount.hidden = !user;
+      if (headerName) {
+        headerName.textContent = displayName;
+      }
+      if (headerSignOutButton) {
+        headerSignOutButton.hidden = !user;
+        headerSignOutButton.disabled = !user;
+      }
+    }
   });
 });
 
 runWhenReady(() => {
+  const params = new URLSearchParams(window.location.search);
+  const redirectParam = params.get("redirect");
+
   const signUpForm = document.querySelector('[data-auth-form="sign-up"]');
   if (signUpForm) {
+    if (redirectParam) {
+      signUpForm.dataset.redirect = redirectParam;
+    }
+
     const submitButton = signUpForm.querySelector('[data-auth-submit="sign-up"]');
     const messageEl = ensureAuthMessageElement(signUpForm);
 
@@ -372,6 +459,10 @@ runWhenReady(() => {
 
   const signInForm = document.querySelector('[data-auth-form="sign-in"]');
   if (signInForm) {
+    if (redirectParam) {
+      signInForm.dataset.redirect = redirectParam;
+    }
+
     const submitButton = signInForm.querySelector('[data-auth-submit="sign-in"]');
     const messageEl = ensureAuthMessageElement(signInForm);
 
@@ -476,6 +567,10 @@ runWhenReady(() => {
 runWhenReady(() => {
   const calendarPage = document.querySelector("[data-calendar]");
   if (!calendarPage) return;
+
+  if (!requireAuthForBooking()) {
+    return;
+  }
 
   const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const weekdaysContainer = calendarPage.querySelector("[data-calendar-weekdays]");
@@ -655,6 +750,10 @@ runWhenReady(() => {
 runWhenReady(() => {
   const selectTimePage = document.querySelector("[data-select-time-page]");
   if (!selectTimePage) return;
+
+  if (!requireAuthForBooking()) {
+    return;
+  }
 
   const list = selectTimePage.querySelector("[data-date-list]");
   const emptyState = selectTimePage.querySelector("[data-empty-state]");
@@ -936,6 +1035,10 @@ runWhenReady(() => {
 runWhenReady(() => {
   const subjectsPage = document.querySelector("[data-subjects-page]");
   if (!subjectsPage) return;
+
+  if (!requireAuthForBooking()) {
+    return;
+  }
 
   const list = subjectsPage.querySelector("[data-subject-list]");
   const helper = subjectsPage.querySelector("[data-subjects-helper]");

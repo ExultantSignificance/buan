@@ -25,6 +25,41 @@ body {
   text-transform: lowercase;
 }
 
+.auth-account {
+  position: absolute;
+  top: 0.9rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.auth-account__name {
+  font-weight: 500;
+}
+
+.auth-account__signout {
+  border: none;
+  background: #111;
+  color: #fff;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+.auth-account__signout:hover:not(:disabled) {
+  background: #333;
+}
+
+.auth-account__signout:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ---------- Reviews Section ---------- */
 .reviews {
   display: flex;
