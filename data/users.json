@@ -1,0 +1,14 @@
+{
+  "users": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "Administrator",
+      "email": "buangareth@gmail.com",
+      "yearLevel": "n/a",
+      "role": "admin",
+      "passwordHash": "a44ca5d29f6dab4320ab986479fa985b2d584b11a7da934f7e80bb1449913a07",
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    }
+  ]
+}

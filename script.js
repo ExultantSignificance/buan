@@ -121,19 +121,24 @@ const AUTH_STORAGE_KEY = "buan.authSession";
 
 const auth = (() => {
   const listeners = new Set();
-  let authState = { token: null, user: null };
+  let authState = { token: null, user: null, role: null };
 
   const parseStoredState = value => {
-    if (!value) return { token: null, user: null };
+    if (!value) return { token: null, user: null, role: null };
     try {
       const parsed = JSON.parse(value);
-      if (!parsed || typeof parsed !== "object") return { token: null, user: null };
+      if (!parsed || typeof parsed !== "object") return { token: null, user: null, role: null };
       const token = typeof parsed.token === "string" ? parsed.token : null;
       const user = parsed.user && typeof parsed.user === "object" ? parsed.user : null;
-      return { token, user };
+      const role = typeof parsed.role === "string"
+        ? parsed.role
+        : user && typeof user.role === "string"
+          ? user.role
+          : null;
+      return { token, user, role };
     } catch (error) {
       console.warn("Unable to parse stored auth session", error);
-      return { token: null, user: null };
+      return { token: null, user: null, role: null };
     }
   };
 
@@ -170,7 +175,16 @@ const auth = (() => {
   };
 
   const setState = nextState => {
-    authState = { token: nextState.token ?? null, user: nextState.user ?? null };
+    const nextRole = typeof nextState.role === "string"
+      ? nextState.role
+      : nextState.user && typeof nextState.user.role === "string"
+        ? nextState.user.role
+        : null;
+    authState = {
+      token: nextState.token ?? null,
+      user: nextState.user ?? null,
+      role: nextRole,
+    };
     persistState();
     notify();
   };
@@ -207,9 +221,14 @@ const auth = (() => {
       const user = body && typeof body === "object" && body.user && typeof body.user === "object"
         ? body.user
         : null;
+      const role = typeof body?.role === "string"
+        ? body.role
+        : user && typeof user.role === "string"
+          ? user.role
+          : null;
 
-      setState({ token, user });
-      return { token, user };
+      setState({ token, user, role });
+      return { token, user, role };
     } catch (error) {
       if (error instanceof TypeError) {
         throw new Error("We couldn't reach the server. Check your connection and try again.");
@@ -233,11 +252,40 @@ const auth = (() => {
   };
 
   const signOut = () => {
-    setState({ token: null, user: null });
+    setState({ token: null, user: null, role: null });
   };
 
   const getCurrentUser = () => authState.user;
   const getSessionToken = () => authState.token;
+  const getRole = () => authState.role;
+  const isAdmin = () => authState.role === "admin";
+  const requireAdmin = (options = {}) => {
+    const {
+      redirectTo = AUTH_SIGN_OUT_REDIRECT,
+      signOutOnFailure = true,
+    } = options;
+
+    if (isAdmin()) {
+      return true;
+    }
+
+    if (signOutOnFailure) {
+      try {
+        clearBookingState();
+      } catch (error) {
+        console.warn("Failed to clear booking state while enforcing admin access", error);
+      }
+      signOut();
+    }
+
+    const target = typeof redirectTo === "string" && redirectTo.trim()
+      ? redirectTo.trim()
+      : AUTH_SIGN_OUT_REDIRECT;
+    if (target) {
+      window.location.replace(target);
+    }
+    return false;
+  };
 
   const subscribe = callback => {
     if (typeof callback !== "function") return () => {};
@@ -249,7 +297,17 @@ const auth = (() => {
   readInitialState();
   readInitialUser();
 
-  return { signUp, signIn, signOut, getCurrentUser, getSessionToken, subscribe };
+  return {
+    signUp,
+    signIn,
+    signOut,
+    getCurrentUser,
+    getSessionToken,
+    getRole,
+    isAdmin,
+    requireAdmin,
+    subscribe,
+  };
 })();
 
 const AUTH_DEFAULT_REDIRECT = "booknow.html";
@@ -342,6 +400,16 @@ runWhenReady(() => {
     nav.appendChild(status);
   }
 
+  let adminLink = nav.querySelector("[data-auth-admin]");
+  if (!adminLink) {
+    adminLink = document.createElement("a");
+    adminLink.dataset.authAdmin = "";
+    adminLink.href = "admin.html";
+    adminLink.textContent = "Admin";
+    adminLink.style.display = "none";
+    nav.appendChild(adminLink);
+  }
+
   let signOutButton = nav.querySelector("[data-auth-signout]");
   if (!signOutButton) {
     signOutButton = document.createElement("button");
@@ -366,6 +434,11 @@ runWhenReady(() => {
 
   const signInLink = nav.querySelector('a[href="signin.html"]');
   const signUpLink = nav.querySelector('a[href="signup.html"]');
+  const isAdminPage = () => {
+    const path = window.location.pathname.replace(/^\/+/, "");
+    return path === "admin.html" || path === "admin/index.html";
+  };
+  let adminRedirected = false;
 
   auth.subscribe(({ user }) => {
     if (status) {
@@ -387,6 +460,13 @@ runWhenReady(() => {
       signOutButton.style.display = user ? "block" : "none";
     }
 
+    const adminVisible = auth.isAdmin();
+    if (adminLink) {
+      adminLink.style.display = adminVisible ? "block" : "none";
+      adminLink.hidden = !adminVisible;
+      adminLink.setAttribute("aria-hidden", adminVisible ? "false" : "true");
+    }
+
     if (headerAccount) {
       const displayName = user ? (user.name || user.email || "student") : "";
       headerAccount.hidden = !user;
@@ -396,6 +476,15 @@ runWhenReady(() => {
       if (headerSignOutButton) {
         headerSignOutButton.hidden = !user;
         headerSignOutButton.disabled = !user;
+      }
+    }
+
+    if (!adminVisible && isAdminPage() && !adminRedirected) {
+      adminRedirected = true;
+      if (user) {
+        auth.requireAdmin({ signOutOnFailure: true });
+      } else {
+        redirectToSignIn();
       }
     }
   });
