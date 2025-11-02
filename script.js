@@ -1,3 +1,48 @@
+/*firebase*/
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAv-v8Q_bS3GtcYAAI-3PB4XL1WJv-_shE",
+  authDomain: "buantutoring-2d3e9.firebaseapp.com",
+  projectId: "buantutoring-2d3e9",
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+// Buttons (make sure these exist in your HTML)
+const signupBtn = document.getElementById("signup");
+const loginBtn = document.getElementById("login");
+const logoutBtn = document.getElementById("logout");
+const statusText = document.getElementById("user-status");
+
+signupBtn?.addEventListener("click", async () => {
+  const email = prompt("Email:");
+  const pass = prompt("Password:");
+  await createUserWithEmailAndPassword(auth, email, pass)
+    .catch(e => alert(e.message));
+});
+
+loginBtn?.addEventListener("click", async () => {
+  const email = prompt("Email:");
+  const pass = prompt("Password:");
+  await signInWithEmailAndPassword(auth, email, pass)
+    .catch(e => alert(e.message));
+});
+
+logoutBtn?.addEventListener("click", async () => {
+  await signOut(auth);
+});
+
+onAuthStateChanged(auth, (user) => {
+  statusText.textContent = user
+    ? `Logged in as ${user.email}`
+    : "Not logged in.";
+});
+
+/*not firebase*/
 const BOOKING_STORAGE_KEY = "buan.bookingState";
 
 const SUBJECT_OPTIONS = [
