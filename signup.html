@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Sign Up</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="no-background">
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+    <a href="signin.html" class="auth-link">Sign In</a>
+    <a href="signup.html" class="auth-link auth-link--primary">Sign Up</a>
+  </nav>
+
+  <main class="auth-page">
+    <section class="auth-card" aria-labelledby="sign-up-title">
+      <h2 id="sign-up-title" class="auth-title">Create your account.</h2>
+      <p class="auth-intro">Complete the form below so we can personalise your tutoring experience.</p>
+      <form class="auth-form" data-auth-form="sign-up" novalidate>
+        <div class="auth-field">
+          <label for="signup-name">Full name</label>
+          <input id="signup-name" name="name" type="text" autocomplete="name" required placeholder="Jane Doe" />
+          <p class="auth-hint">Use the student's preferred name for session notes.</p>
+        </div>
+        <div class="auth-field">
+          <label for="signup-email">Email address</label>
+          <input id="signup-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+          <p class="auth-hint">We'll send booking confirmations to this address.</p>
+        </div>
+        <div class="auth-field">
+          <label for="signup-password">Password</label>
+          <input id="signup-password" name="password" type="password" autocomplete="new-password" required minlength="8" placeholder="Create a secure password" />
+          <p class="auth-hint">Minimum 8 characters with a mix of letters and numbers.</p>
+        </div>
+        <div class="auth-field">
+          <label for="signup-year">Current year level</label>
+          <select id="signup-year" name="yearLevel" required>
+            <option value="" disabled selected>Select year level</option>
+            <option value="7">Year 7</option>
+            <option value="8">Year 8</option>
+            <option value="9">Year 9</option>
+            <option value="10">Year 10</option>
+            <option value="11">Year 11</option>
+            <option value="12">Year 12</option>
+            <option value="graduate">Graduate</option>
+          </select>
+          <p class="auth-hint">Choose the level that best reflects the student's studies.</p>
+        </div>
+        <button class="auth-submit" type="submit" data-auth-submit="sign-up">Create Account</button>
+      </form>
+      <p class="auth-switch">Already registered? <a href="signin.html">Sign in instead.</a></p>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
