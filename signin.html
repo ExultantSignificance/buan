@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Sign In</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="no-background">
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+    <a href="signin.html" class="auth-link">Sign In</a>
+    <a href="signup.html" class="auth-link auth-link--primary">Sign Up</a>
+  </nav>
+
+  <main class="auth-page">
+    <section class="auth-card" aria-labelledby="sign-in-title">
+      <h2 id="sign-in-title" class="auth-title">Welcome back.</h2>
+      <p class="auth-intro">Sign in to manage your tutoring sessions and keep track of your bookings.</p>
+      <form class="auth-form" data-auth-form="sign-in" novalidate>
+        <div class="auth-field">
+          <label for="signin-email">Email address</label>
+          <input id="signin-email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+          <p class="auth-hint">Use the email you provided when booking.</p>
+        </div>
+        <div class="auth-field">
+          <label for="signin-password">Password</label>
+          <input id="signin-password" name="password" type="password" autocomplete="current-password" required minlength="8" placeholder="••••••••" />
+          <p class="auth-hint">Minimum 8 characters.</p>
+        </div>
+        <button class="auth-submit" type="submit" data-auth-submit="sign-in">Sign In</button>
+      </form>
+      <p class="auth-switch">Need an account? <a href="signup.html">Create one now.</a></p>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -257,6 +257,25 @@ body.no-background::after {
   letter-spacing: 0.5px;
 }
 
+.off-screen-menu .auth-link {
+  width: 100%;
+  text-align: center;
+}
+
+.off-screen-menu .auth-link--primary {
+  background: #111;
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border-radius: 999px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.off-screen-menu .auth-link--primary:hover,
+.off-screen-menu .auth-link--primary:focus-visible {
+  background: #333;
+  transform: translateY(-1px);
+}
+
 /* ---------- Book now page ---------- */
 /* Header */
 .site-header {
@@ -1150,3 +1169,122 @@ header, main, footer {
   }
 }
 
+
+/* ---------- Authentication Pages ---------- */
+.auth-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem;
+}
+
+.auth-card {
+  width: min(460px, 100%);
+  background: #ffffff;
+  border: 1px solid #f1f1f1;
+  border-radius: 18px;
+  padding: 2.5rem 2.25rem;
+  box-shadow: 0 20px 40px rgba(17, 17, 17, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.auth-title {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: lowercase;
+}
+
+.auth-intro {
+  margin: 0;
+  color: #555;
+  line-height: 1.6;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.auth-field label {
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.auth-field input,
+.auth-field select {
+  border: 1px solid #dcdcdc;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-field input:focus-visible,
+.auth-field select:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: 2px;
+  border-color: #111;
+  box-shadow: 0 0 0 4px rgba(17, 17, 17, 0.12);
+}
+
+.auth-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #777;
+}
+
+.auth-submit {
+  border: none;
+  border-radius: 999px;
+  background: #111;
+  color: #fff;
+  padding: 0.95rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.auth-submit:hover,
+.auth-submit:focus-visible {
+  background: #333;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(17, 17, 17, 0.2);
+}
+
+.auth-switch {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #555;
+}
+
+.auth-switch a {
+  color: #111;
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.auth-switch a:hover,
+.auth-switch a:focus-visible {
+  border-color: #111;
+}
+
+@media (max-width: 600px) {
+  .auth-card {
+    padding: 2rem 1.75rem;
+  }
+}
