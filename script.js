@@ -1,7 +1,13 @@
 /*firebase*/
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged }
-  from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  updateProfile,
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAv-v8Q_bS3GtcYAAI-3PB4XL1WJv-_shE",
@@ -21,25 +27,31 @@ const statusText = document.getElementById("user-status");
 signupBtn?.addEventListener("click", async () => {
   const email = prompt("Email:");
   const pass = prompt("Password:");
-  await createUserWithEmailAndPassword(firebaseAuth, email, pass)
-    .catch(e => alert(e.message));
+  if (!email || !pass) return;
+  try {
+    await authClient.signUp({ email, password: pass });
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
 loginBtn?.addEventListener("click", async () => {
   const email = prompt("Email:");
   const pass = prompt("Password:");
-  await signInWithEmailAndPassword(firebaseAuth, email, pass)
-    .catch(e => alert(e.message));
+  if (!email || !pass) return;
+  try {
+    await authClient.signIn({ email, password: pass });
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
 logoutBtn?.addEventListener("click", async () => {
-  await signOut(firebaseAuth);
-});
-
-onAuthStateChanged(firebaseAuth, (user) => {
-  statusText.textContent = user
-    ? `Logged in as ${user.email}`
-    : "Not logged in.";
+  try {
+    await authClient.signOut();
+  } catch (error) {
+    alert(error.message);
+  }
 });
 
 // ---------- Sign Up ----------
@@ -49,9 +61,9 @@ if (signupForm) {
     e.preventDefault();
     const email = document.getElementById('signup-email').value;
     const pass = document.getElementById('signup-password').value;
-    
+
     try {
-      await createUserWithEmailAndPassword(firebaseAuth, email, pass);
+      await authClient.signUp({ email, password: pass });
       alert('Account created successfully!');
       window.location.href = 'booknow.html';
     } catch (error) {
@@ -67,9 +79,9 @@ if (signinForm) {
     e.preventDefault();
     const email = document.getElementById('signin-email').value;
     const pass = document.getElementById('signin-password').value;
-    
+
     try {
-      await signInWithEmailAndPassword(firebaseAuth, email, pass);
+      await authClient.signIn({ email, password: pass });
       alert('Signed in successfully!');
       window.location.href = 'booknow.html';
     } catch (error) {
@@ -191,7 +203,8 @@ const redirectToSignIn = () => {
 const requireAuthForBooking = () => {
   const hasSession = Boolean(authClient.getSessionToken());
   const hasUser = Boolean(authClient.getCurrentUser());
-  if (hasSession || hasUser) {
+  const firebaseUser = firebaseAuth.currentUser;
+  if (hasSession || hasUser || firebaseUser) {
     return true;
   }
   redirectToSignIn();
@@ -203,6 +216,17 @@ const AUTH_STORAGE_KEY = "buan.authSession";
 const authClient = (() => {
   const listeners = new Set();
   let authState = { token: null, user: null };
+
+  const mapFirebaseUser = user => {
+    if (!user) return null;
+    return {
+      id: user.uid,
+      uid: user.uid,
+      email: user.email || "",
+      name: user.displayName || "",
+      phoneNumber: user.phoneNumber || "",
+    };
+  };
 
   const parseStoredState = value => {
     if (!value) return { token: null, user: null };
@@ -251,51 +275,65 @@ const authClient = (() => {
   };
 
   const setState = nextState => {
-    authState = { token: nextState.token ?? null, user: nextState.user ?? null };
+    const nextUser = nextState.user && typeof nextState.user === "object"
+      ? { ...nextState.user }
+      : null;
+    authState = { token: nextState.token ?? null, user: nextUser };
     persistState();
     notify();
   };
 
-  const request = async (endpoint, payload) => {
+  const syncFromFirebaseUser = async firebaseUser => {
+    if (!firebaseUser) {
+      const session = { token: null, user: null };
+      setState(session);
+      return session;
+    }
+
     try {
-      const response = await fetch(`/api/auth/${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(payload),
-      });
-
-      const contentType = response.headers.get("content-type") || "";
-      const isJson = contentType.includes("application/json");
-      const body = isJson ? await response.json() : await response.text();
-
-      if (!response.ok) {
-        const message = body && typeof body === "object" && body.message
-          ? body.message
-          : typeof body === "string" && body.trim()
-            ? body.trim()
-            : "Unable to complete the request. Please try again.";
-        throw new Error(message);
-      }
-
-      const token = body && typeof body === "object"
-        ? (typeof body.token === "string"
-          ? body.token
-          : typeof body.sessionToken === "string"
-            ? body.sessionToken
-            : null)
-        : null;
-      const user = body && typeof body === "object" && body.user && typeof body.user === "object"
-        ? body.user
-        : null;
-
-      setState({ token, user });
-      return { token, user };
+      const token = await firebaseUser.getIdToken();
+      const session = { token, user: mapFirebaseUser(firebaseUser) };
+      setState(session);
+      return session;
     } catch (error) {
-      if (error instanceof TypeError) {
-        throw new Error("We couldn't reach the server. Check your connection and try again.");
+      console.warn("Unable to read Firebase ID token", error);
+      const session = { token: null, user: mapFirebaseUser(firebaseUser) };
+      setState(session);
+      return session;
+    }
+  };
+
+  const request = async (action, payload) => {
+    const email = payload?.email;
+    const password = payload?.password;
+    if (!email || !password) {
+      throw new Error("Enter a valid email address and password to continue.");
+    }
+
+    try {
+      let credential;
+      if (action === "signup") {
+        credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+        const name = typeof payload?.name === "string" && payload.name.trim() ? payload.name.trim() : "";
+        if (name) {
+          try {
+            await updateProfile(credential.user, { displayName: name });
+          } catch (error) {
+            console.warn("Unable to update Firebase profile", error);
+          }
+        }
+      } else if (action === "signin") {
+        credential = await signInWithEmailAndPassword(firebaseAuth, email, password);
+      } else {
+        throw new Error("Unsupported authentication request.");
       }
-      throw error;
+
+      return await syncFromFirebaseUser(credential.user);
+    } catch (error) {
+      const message = error && typeof error.message === "string" && error.message.trim()
+        ? error.message.trim()
+        : "Unable to complete the request. Please try again.";
+      throw new Error(message);
     }
   };
 
@@ -313,8 +351,14 @@ const authClient = (() => {
     return request("signin", credentials);
   };
 
-  const signOut = () => {
-    setState({ token: null, user: null });
+  const signOut = async () => {
+    try {
+      await firebaseSignOut(firebaseAuth);
+      return await syncFromFirebaseUser(null);
+    } catch (error) {
+      await syncFromFirebaseUser(null);
+      throw error;
+    }
   };
 
   const getCurrentUser = () => authState.user;
@@ -330,11 +374,25 @@ const authClient = (() => {
   readInitialState();
   readInitialUser();
 
+  onAuthStateChanged(firebaseAuth, user => {
+    syncFromFirebaseUser(user).catch(error => {
+      console.error("Unable to synchronise Firebase auth state", error);
+    });
+  });
+
   return { signUp, signIn, signOut, getCurrentUser, getSessionToken, subscribe };
 })();
 
 const AUTH_DEFAULT_REDIRECT = "booknow.html";
 const AUTH_SIGN_OUT_REDIRECT = "index.html";
+
+if (statusText) {
+  authClient.subscribe(({ user }) => {
+    statusText.textContent = user
+      ? `Logged in as ${user.email || "student"}`
+      : "Not logged in.";
+  });
+}
 
 const ensureAuthMessageElement = form => {
   let message = form.querySelector("[data-auth-message]");
@@ -434,9 +492,13 @@ runWhenReady(() => {
     nav.appendChild(signOutButton);
   }
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     clearBookingState();
-    authClient.signOut();
+    try {
+      await authClient.signOut();
+    } catch (error) {
+      console.warn("Unable to sign out", error);
+    }
     window.location.href = AUTH_SIGN_OUT_REDIRECT;
   };
 
@@ -479,6 +541,11 @@ runWhenReady(() => {
         headerSignOutButton.disabled = !user;
       }
     }
+
+    const authLinks = document.querySelectorAll(".auth-link");
+    authLinks.forEach(link => {
+      link.style.display = user ? "none" : "";
+    });
   });
 });
 
@@ -1355,32 +1422,3 @@ runWhenReady(() => {
   });
 });
 
-// ---------- Auth State Tracking ----------
-onAuthStateChanged(firebaseAuth, (user) => {
-  const authLinks = document.querySelectorAll('.auth-link');
-  if (user) {
-    // Hide sign-in/up
-    authLinks.forEach(link => link.style.display = 'none');
-
-    // Add user info to header
-    const header = document.querySelector('.sticky-header');
-    if (header && !document.querySelector('.auth-account')) {
-      const div = document.createElement('div');
-      div.classList.add('auth-account');
-      div.innerHTML = `
-        <span class="auth-account__name">${user.email}</span>
-        <button class="auth-account__signout">Sign Out</button>
-      `;
-      header.appendChild(div);
-      div.querySelector('.auth-account__signout').addEventListener('click', async () => {
-        await signOut(firebaseAuth);
-        window.location.href = 'index.html';
-      });
-    }
-  } else {
-    // Show sign-in/up again
-    authLinks.forEach(link => link.style.display = '');
-    const existing = document.querySelector('.auth-account');
-    if (existing) existing.remove();
-  }
-});
