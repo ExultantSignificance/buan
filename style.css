@@ -270,20 +270,24 @@ body.no-background::after {
   width: min(420px, 82%);
   height: 100%;
   background: linear-gradient(160deg, rgba(17, 24, 39, 0.95), rgba(15, 23, 42, 0.85));
-  box-shadow: -30px 0 60px rgba(15, 23, 42, 0.45);
   display: flex;
   flex-direction: column;
   align-items: stretch;
   justify-content: center;
   padding: 3.5rem 2.5rem 2.75rem;
   gap: 1rem;
-  transition: right 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+  opacity: 0;
+  pointer-events: none;
+  transition: right 0.3s ease-in-out, opacity 0.3s ease-in-out;
   z-index: 15;
   backdrop-filter: blur(6px);
 }
 
 .off-screen-menu.active {
   right: 0;
+  opacity: 1;
+  pointer-events: auto;
+  box-shadow: -30px 0 60px rgba(15, 23, 42, 0.45);
 }
 
 .off-screen-menu a {
