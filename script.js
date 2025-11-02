@@ -54,42 +54,6 @@ logoutBtn?.addEventListener("click", async () => {
   }
 });
 
-// ---------- Sign Up ----------
-const signupForm = document.querySelector('[data-auth-form="sign-up"]');
-if (signupForm) {
-  signupForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('signup-email').value;
-    const pass = document.getElementById('signup-password').value;
-
-    try {
-      await authClient.signUp({ email, password: pass });
-      alert('Account created successfully!');
-      window.location.href = 'booknow.html';
-    } catch (error) {
-      alert(error.message);
-    }
-  });
-}
-
-// ---------- Sign In ----------
-const signinForm = document.querySelector('[data-auth-form="sign-in"]');
-if (signinForm) {
-  signinForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('signin-email').value;
-    const pass = document.getElementById('signin-password').value;
-
-    try {
-      await authClient.signIn({ email, password: pass });
-      alert('Signed in successfully!');
-      window.location.href = 'booknow.html';
-    } catch (error) {
-      alert(error.message);
-    }
-  });
-}
-
 /*not firebase*/
 const BOOKING_STORAGE_KEY = "buan.bookingState";
 
