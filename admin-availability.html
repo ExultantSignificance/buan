@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Availability · Buan Tutoring</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="admin-availability.css" />
+</head>
+<body>
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>Admin Console</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+    <a href="signin.html" class="auth-link">Sign In</a>
+    <a href="signup.html" class="auth-link auth-link--primary">Sign Up</a>
+    <a href="admin-availability.html" data-auth-admin hidden>Admin</a>
+  </nav>
+
+  <main class="admin-availability" data-admin-availability-page>
+    <section class="admin-availability__intro">
+      <div class="admin-availability__heading">
+        <h2>Session Availability</h2>
+        <p class="admin-availability__subheading">Manage weekly availability, view bookings, and adjust sessions in one place.</p>
+      </div>
+      <p class="admin-status" data-admin-status hidden></p>
+      <div class="admin-availability__meta">
+        <div class="admin-availability__updated">Last updated: <span data-admin-updated>Never</span></div>
+        <button type="button" class="admin-button admin-button--ghost" data-admin-refresh>Refresh Data</button>
+      </div>
+    </section>
+
+    <section class="admin-availability__controls">
+      <form class="availability-form" data-availability-form>
+        <div class="availability-form__group">
+          <label>
+            Date
+            <input type="date" name="date" required data-availability-date />
+          </label>
+        </div>
+        <div class="availability-form__group">
+          <label>
+            Time
+            <input type="time" name="time" required step="900" data-availability-time />
+          </label>
+        </div>
+        <button type="submit" class="admin-button admin-button--primary">Add Slot</button>
+      </form>
+
+      <div class="availability-controls">
+        <button type="button" class="admin-button admin-button--ghost" data-week-nav="prev" aria-label="View previous week">◀</button>
+        <label class="availability-controls__start">
+          Week starting
+          <input type="date" data-availability-start />
+        </label>
+        <button type="button" class="admin-button admin-button--ghost" data-week-nav="next" aria-label="View next week">▶</button>
+      </div>
+    </section>
+
+    <section class="admin-availability__calendar" data-availability-calendar></section>
+
+    <section class="admin-availability__sessions">
+      <div class="admin-availability__sessions-header">
+        <h2>Booked Sessions</h2>
+        <p>Move sessions to a new slot or cancel them when needed. Changes save instantly.</p>
+      </div>
+      <ul class="session-list" data-session-list></ul>
+    </section>
+
+    <div class="admin-loading" data-admin-loading hidden aria-live="polite" aria-label="Loading">
+      <div class="admin-loading__spinner" aria-hidden="true"></div>
+      <p>Loading latest data…</p>
+    </div>
+  </main>
+
+  <footer class="sticky-footer">
+    <a href="bundles.html" class="pricing-btn">Pricing And Bundles</a>
+  </footer>
+
+  <script src="script.js"></script>
+  <script type="module" src="admin-availability.js"></script>
+</body>
+</html>
