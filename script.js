@@ -42,6 +42,42 @@ onAuthStateChanged(auth, (user) => {
     : "Not logged in.";
 });
 
+// ---------- Sign Up ----------
+const signupForm = document.querySelector('[data-auth-form="sign-up"]');
+if (signupForm) {
+  signupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('signup-email').value;
+    const pass = document.getElementById('signup-password').value;
+    
+    try {
+      await createUserWithEmailAndPassword(auth, email, pass);
+      alert('Account created successfully!');
+      window.location.href = 'booknow.html';
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
+
+// ---------- Sign In ----------
+const signinForm = document.querySelector('[data-auth-form="sign-in"]');
+if (signinForm) {
+  signinForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('signin-email').value;
+    const pass = document.getElementById('signin-password').value;
+    
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      alert('Signed in successfully!');
+      window.location.href = 'booknow.html';
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
+
 /*not firebase*/
 const BOOKING_STORAGE_KEY = "buan.bookingState";
 
@@ -1317,4 +1353,34 @@ runWhenReady(() => {
     saveState();
     window.location.href = "checkout.html";
   });
+});
+
+// ---------- Auth State Tracking ----------
+onAuthStateChanged(auth, (user) => {
+  const authLinks = document.querySelectorAll('.auth-link');
+  if (user) {
+    // Hide sign-in/up
+    authLinks.forEach(link => link.style.display = 'none');
+
+    // Add user info to header
+    const header = document.querySelector('.sticky-header');
+    if (header && !document.querySelector('.auth-account')) {
+      const div = document.createElement('div');
+      div.classList.add('auth-account');
+      div.innerHTML = `
+        <span class="auth-account__name">${user.email}</span>
+        <button class="auth-account__signout">Sign Out</button>
+      `;
+      header.appendChild(div);
+      div.querySelector('.auth-account__signout').addEventListener('click', async () => {
+        await signOut(auth);
+        window.location.href = 'index.html';
+      });
+    }
+  } else {
+    // Show sign-in/up again
+    authLinks.forEach(link => link.style.display = '');
+    const existing = document.querySelector('.auth-account');
+    if (existing) existing.remove();
+  }
 });
