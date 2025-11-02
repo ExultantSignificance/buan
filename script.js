@@ -310,8 +310,100 @@ const auth = (() => {
   };
 })();
 
+const adminClient = (() => {
+  const parseResponse = async response => {
+    const contentType = response.headers.get('Content-Type') || '';
+    if (contentType.includes('application/json')) {
+      try {
+        return await response.json();
+      } catch (error) {
+        console.warn('Failed to parse admin response JSON', error);
+        return {};
+      }
+    }
+
+    const text = await response.text();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      return { message: text };
+    }
+  };
+
+  const request = async (path, { method = 'GET', body } = {}) => {
+    try {
+      const init = {
+        method,
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+        },
+      };
+
+      if (body !== undefined) {
+        init.headers['Content-Type'] = 'application/json';
+        init.body = JSON.stringify(body);
+      }
+
+      const response = await fetch(path, init);
+      const data = await parseResponse(response);
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          try {
+            if (auth && typeof auth.requireAdmin === 'function') {
+              auth.requireAdmin({ signOutOnFailure: true });
+            }
+          } catch (authError) {
+            console.warn('Failed to enforce admin session after authorization error', authError);
+          }
+        }
+        const error = new Error((data && data.message) || 'Request failed');
+        error.status = response.status;
+        error.details = data;
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      console.error('Admin API request failed', error);
+      throw error;
+    }
+  };
+
+  const fetchAvailability = () => request('/api/admin/availability');
+  const updateAvailability = availability => request('/api/admin/availability', {
+    method: 'PUT',
+    body: { availability },
+  });
+  const fetchSessions = () => request('/api/admin/sessions');
+  const updateSession = (sessionId, payload) => {
+    if (!sessionId) {
+      return Promise.reject(new Error('Session identifier is required.'));
+    }
+    return request(`/api/admin/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'PATCH',
+      body: payload || {},
+    });
+  };
+
+  return {
+    fetchAvailability,
+    updateAvailability,
+    fetchSessions,
+    updateSession,
+  };
+})();
+
 const AUTH_DEFAULT_REDIRECT = "booknow.html";
 const AUTH_SIGN_OUT_REDIRECT = "index.html";
+
+if (typeof window !== "undefined") {
+  window.buan = window.buan || {};
+  window.buan.auth = auth;
+  window.buan.runWhenReady = runWhenReady;
+  window.buan.adminClient = adminClient;
+  window.buan.redirectToSignIn = redirectToSignIn;
+}
 
 const ensureAuthMessageElement = form => {
   let message = form.querySelector("[data-auth-message]");
@@ -404,10 +496,12 @@ runWhenReady(() => {
   if (!adminLink) {
     adminLink = document.createElement("a");
     adminLink.dataset.authAdmin = "";
-    adminLink.href = "admin.html";
+    adminLink.href = "admin-availability.html";
     adminLink.textContent = "Admin";
     adminLink.style.display = "none";
     nav.appendChild(adminLink);
+  } else {
+    adminLink.href = "admin-availability.html";
   }
 
   let signOutButton = nav.querySelector("[data-auth-signout]");
@@ -436,7 +530,7 @@ runWhenReady(() => {
   const signUpLink = nav.querySelector('a[href="signup.html"]');
   const isAdminPage = () => {
     const path = window.location.pathname.replace(/^\/+/, "");
-    return path === "admin.html" || path === "admin/index.html";
+    return path === "admin-availability.html" || path === "admin/index.html";
   };
   let adminRedirected = false;
 
