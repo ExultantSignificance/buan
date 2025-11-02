@@ -267,16 +267,19 @@ body.no-background::after {
   position: fixed;
   top: 0;
   right: -100%;
-  width: 60%;
+  width: min(420px, 82%);
   height: 100%;
-  background: white;
-  box-shadow: -2px 0 6px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(160deg, rgba(17, 24, 39, 0.95), rgba(15, 23, 42, 0.85));
+  box-shadow: -30px 0 60px rgba(15, 23, 42, 0.45);
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  transition: right 0.3s ease-in-out;
+  padding: 3.5rem 2.5rem 2.75rem;
+  gap: 1rem;
+  transition: right 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
   z-index: 15;
+  backdrop-filter: blur(6px);
 }
 
 .off-screen-menu.active {
@@ -284,12 +287,36 @@ body.no-background::after {
 }
 
 .off-screen-menu a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   text-decoration: none;
-  color: #111;
-  font-size: 1.2rem;
-  margin: 1rem 0;
+  color: #f8fafc;
+  font-size: 1.05rem;
   font-weight: 500;
   letter-spacing: 0.5px;
+  padding: 0.85rem 1.6rem;
+  margin: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.35);
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.off-screen-menu a:hover,
+.off-screen-menu a:focus-visible {
+  background: rgba(255, 255, 255, 0.2);
+  color: #0f172a;
+  transform: translateY(-2px);
+  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.4);
+}
+
+.off-screen-menu a:focus-visible {
+  outline: 3px solid rgba(248, 250, 252, 0.9);
+  outline-offset: 3px;
 }
 
 .off-screen-menu .auth-link {
@@ -298,17 +325,19 @@ body.no-background::after {
 }
 
 .off-screen-menu .auth-link--primary {
-  background: #111;
-  color: #fff;
-  padding: 0.75rem 1.5rem;
-  border-radius: 999px;
-  transition: background 0.2s ease, transform 0.2s ease;
+  background: linear-gradient(135deg, #f97316, #facc15);
+  color: #0f172a;
+  border: none;
+  font-weight: 600;
+  box-shadow: 0 18px 32px rgba(249, 115, 22, 0.4);
 }
 
 .off-screen-menu .auth-link--primary:hover,
 .off-screen-menu .auth-link--primary:focus-visible {
-  background: #333;
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #fb923c, #fde047);
+  color: #020617;
+  transform: translateY(-2px);
+  box-shadow: 0 20px 36px rgba(249, 115, 22, 0.5);
 }
 
 /* ---------- Book now page ---------- */
