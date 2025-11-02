@@ -10,7 +10,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+const firebaseAuth = getAuth(app);
 
 // Buttons (make sure these exist in your HTML)
 const signupBtn = document.getElementById("signup");
@@ -21,22 +21,22 @@ const statusText = document.getElementById("user-status");
 signupBtn?.addEventListener("click", async () => {
   const email = prompt("Email:");
   const pass = prompt("Password:");
-  await createUserWithEmailAndPassword(auth, email, pass)
+  await createUserWithEmailAndPassword(firebaseAuth, email, pass)
     .catch(e => alert(e.message));
 });
 
 loginBtn?.addEventListener("click", async () => {
   const email = prompt("Email:");
   const pass = prompt("Password:");
-  await signInWithEmailAndPassword(auth, email, pass)
+  await signInWithEmailAndPassword(firebaseAuth, email, pass)
     .catch(e => alert(e.message));
 });
 
 logoutBtn?.addEventListener("click", async () => {
-  await signOut(auth);
+  await signOut(firebaseAuth);
 });
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(firebaseAuth, (user) => {
   statusText.textContent = user
     ? `Logged in as ${user.email}`
     : "Not logged in.";
@@ -51,7 +51,7 @@ if (signupForm) {
     const pass = document.getElementById('signup-password').value;
     
     try {
-      await createUserWithEmailAndPassword(auth, email, pass);
+      await createUserWithEmailAndPassword(firebaseAuth, email, pass);
       alert('Account created successfully!');
       window.location.href = 'booknow.html';
     } catch (error) {
@@ -69,7 +69,7 @@ if (signinForm) {
     const pass = document.getElementById('signin-password').value;
     
     try {
-      await signInWithEmailAndPassword(auth, email, pass);
+      await signInWithEmailAndPassword(firebaseAuth, email, pass);
       alert('Signed in successfully!');
       window.location.href = 'booknow.html';
     } catch (error) {
@@ -189,8 +189,8 @@ const redirectToSignIn = () => {
 };
 
 const requireAuthForBooking = () => {
-  const hasSession = Boolean(auth.getSessionToken());
-  const hasUser = Boolean(auth.getCurrentUser());
+  const hasSession = Boolean(authClient.getSessionToken());
+  const hasUser = Boolean(authClient.getCurrentUser());
   if (hasSession || hasUser) {
     return true;
   }
@@ -200,7 +200,7 @@ const requireAuthForBooking = () => {
 
 const AUTH_STORAGE_KEY = "buan.authSession";
 
-const auth = (() => {
+const authClient = (() => {
   const listeners = new Set();
   let authState = { token: null, user: null };
 
@@ -436,7 +436,7 @@ runWhenReady(() => {
 
   const handleSignOut = () => {
     clearBookingState();
-    auth.signOut();
+    authClient.signOut();
     window.location.href = AUTH_SIGN_OUT_REDIRECT;
   };
 
@@ -448,7 +448,7 @@ runWhenReady(() => {
   const signInLink = nav.querySelector('a[href="signin.html"]');
   const signUpLink = nav.querySelector('a[href="signup.html"]');
 
-  auth.subscribe(({ user }) => {
+  authClient.subscribe(({ user }) => {
     if (status) {
       status.textContent = user
         ? `Signed in as ${user.name || user.email || "student"}.`
@@ -524,7 +524,7 @@ runWhenReady(() => {
       setAuthMessage(messageEl, "", "");
 
       try {
-        await auth.signUp({ name, email, password, yearLevel });
+        await authClient.signUp({ name, email, password, yearLevel });
         setAuthMessage(messageEl, "success", "Account created! Redirecting...");
         const redirect = signUpForm.dataset.redirect || AUTH_DEFAULT_REDIRECT;
         window.setTimeout(() => {
@@ -570,7 +570,7 @@ runWhenReady(() => {
       setAuthMessage(messageEl, "", "");
 
       try {
-        await auth.signIn({ email, password });
+        await authClient.signIn({ email, password });
         setAuthMessage(messageEl, "success", "Welcome back! Redirecting...");
         const redirect = signInForm.dataset.redirect || AUTH_DEFAULT_REDIRECT;
         window.setTimeout(() => {
@@ -1356,7 +1356,7 @@ runWhenReady(() => {
 });
 
 // ---------- Auth State Tracking ----------
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(firebaseAuth, (user) => {
   const authLinks = document.querySelectorAll('.auth-link');
   if (user) {
     // Hide sign-in/up
@@ -1373,7 +1373,7 @@ onAuthStateChanged(auth, (user) => {
       `;
       header.appendChild(div);
       div.querySelector('.auth-account__signout').addEventListener('click', async () => {
-        await signOut(auth);
+        await signOut(firebaseAuth);
         window.location.href = 'index.html';
       });
     }
