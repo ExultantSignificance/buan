@@ -8,12 +8,10 @@ const { randomUUID, createHash } = require('crypto');
 const ROOT_DIR = __dirname;
 const DATA_DIR = path.join(ROOT_DIR, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const ADMIN_DATA_FILE = path.join(DATA_DIR, 'admin-data.json');
 const ADMIN_EMAIL = 'buangareth@gmail.com';
 const ADMIN_DEFAULT_PASSWORD = process.env.ADMIN_SEED_PASSWORD || 'AdminPass123!';
 const SESSION_COOKIE_NAME = 'buan_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
-const SESSION_TTL_MILLIS = SESSION_TTL_SECONDS * 1000;
 
 const sessions = new Map();
 
@@ -41,20 +39,6 @@ async function ensureDataFile() {
   }
 }
 
-async function ensureAdminDataFile() {
-  await fsp.mkdir(DATA_DIR, { recursive: true });
-  try {
-    await fsp.access(ADMIN_DATA_FILE, fs.constants.F_OK);
-  } catch (error) {
-    const initialData = {
-      availability: {},
-      sessions: [],
-      updatedAt: null,
-    };
-    await fsp.writeFile(ADMIN_DATA_FILE, JSON.stringify(initialData, null, 2), 'utf8');
-  }
-}
-
 async function readUserData() {
   await ensureDataFile();
   try {
@@ -77,39 +61,6 @@ async function writeUserData(users) {
   await fsp.writeFile(USERS_FILE, JSON.stringify({ users }, null, 2), 'utf8');
 }
 
-async function readAdminData() {
-  await ensureAdminDataFile();
-  try {
-    const raw = await fsp.readFile(ADMIN_DATA_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') {
-      return { availability: {}, sessions: [], updatedAt: null };
-    }
-    const availability = parsed.availability && typeof parsed.availability === 'object'
-      ? parsed.availability
-      : {};
-    const sessions = Array.isArray(parsed.sessions) ? parsed.sessions : [];
-    const updatedAt = typeof parsed.updatedAt === 'string' ? parsed.updatedAt : null;
-    return { availability, sessions, updatedAt };
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return { availability: {}, sessions: [], updatedAt: null };
-    }
-    throw error;
-  }
-}
-
-async function writeAdminData(nextData) {
-  await ensureAdminDataFile();
-  const payload = {
-    availability: nextData.availability || {},
-    sessions: Array.isArray(nextData.sessions) ? nextData.sessions : [],
-    updatedAt: nextData.updatedAt || new Date().toISOString(),
-  };
-  await fsp.writeFile(ADMIN_DATA_FILE, JSON.stringify(payload, null, 2), 'utf8');
-  return payload;
-}
-
 function sanitizeUser(user) {
   const { passwordHash, ...safe } = user;
   return safe;
@@ -119,95 +70,6 @@ function createSession(userId) {
   const token = randomUUID();
   sessions.set(token, { userId, createdAt: Date.now() });
   return token;
-}
-
-function parseCookies(cookieHeader) {
-  if (!cookieHeader || typeof cookieHeader !== 'string') {
-    return {};
-  }
-  return cookieHeader.split(';').reduce((acc, entry) => {
-    const [rawName, ...rest] = entry.split('=');
-    if (!rawName) return acc;
-    const name = rawName.trim();
-    if (!name) return acc;
-    const value = rest.join('=').trim();
-    acc[name] = value;
-    return acc;
-  }, {});
-}
-
-async function loadUserById(userId) {
-  if (!userId) return null;
-  const users = await readUserData();
-  return users.find(user => user.id === userId) || null;
-}
-
-async function getSessionUser(req) {
-  const cookies = parseCookies(req.headers.cookie);
-  const token = cookies[SESSION_COOKIE_NAME];
-  if (!token) {
-    return null;
-  }
-
-  const session = sessions.get(token);
-  if (!session) {
-    return null;
-  }
-
-  if (Date.now() - session.createdAt > SESSION_TTL_MILLIS) {
-    sessions.delete(token);
-    return null;
-  }
-
-  const user = await loadUserById(session.userId);
-  if (!user) {
-    sessions.delete(token);
-    return null;
-  }
-
-  return user;
-}
-
-function isIsoDate(value) {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
-
-function isTimeValue(value) {
-  return typeof value === 'string' && /^\d{2}:\d{2}$/.test(value);
-}
-
-function normalizeAvailability(input) {
-  const source = input && typeof input === 'object' ? input : {};
-  const normalized = {};
-  Object.keys(source).forEach(dateKey => {
-    if (!isIsoDate(dateKey)) return;
-    const times = Array.isArray(source[dateKey]) ? source[dateKey] : [];
-    const unique = Array.from(new Set(times.filter(isTimeValue)));
-    if (!unique.length) return;
-    normalized[dateKey] = unique.sort();
-  });
-  return normalized;
-}
-
-function normalizeSessions(input) {
-  if (!Array.isArray(input)) return [];
-  return input
-    .filter(entry => entry && typeof entry === 'object')
-    .map(entry => ({
-      id: typeof entry.id === 'string' ? entry.id : randomUUID(),
-      studentName: typeof entry.studentName === 'string' ? entry.studentName : 'Student',
-      subject: typeof entry.subject === 'string' ? entry.subject : '',
-      email: typeof entry.email === 'string' ? entry.email : '',
-      phone: typeof entry.phone === 'string' ? entry.phone : '',
-      date: isIsoDate(entry.date) ? entry.date : null,
-      time: isTimeValue(entry.time) ? entry.time : null,
-      status: typeof entry.status === 'string' ? entry.status : 'booked',
-      notes: typeof entry.notes === 'string' ? entry.notes : '',
-      createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : new Date().toISOString(),
-      updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
-      canceledAt: typeof entry.canceledAt === 'string' ? entry.canceledAt : null,
-    }))
-    .filter(entry => entry.date && entry.time);
 }
 
 function setSessionCookie(res, token) {
@@ -288,147 +150,6 @@ async function ensureAdminSeed() {
   };
   users.push(adminUser);
   await writeUserData(users);
-}
-
-async function requireAdminRequest(req, res) {
-  try {
-    const user = await getSessionUser(req);
-    if (!user) {
-      sendJson(res, 401, { message: 'Authentication required.' });
-      return null;
-    }
-    if (user.role !== 'admin') {
-      sendJson(res, 403, { message: 'Administrator access required.' });
-      return null;
-    }
-    return user;
-  } catch (error) {
-    console.error('Failed to resolve admin session', error);
-    sendJson(res, 500, { message: 'Unable to verify your session right now.' });
-    return null;
-  }
-}
-
-async function handleAdminAvailability(req, res) {
-  if (req.method === 'GET') {
-    try {
-      const data = await readAdminData();
-      const availability = normalizeAvailability(data.availability);
-      return sendJson(res, 200, {
-        availability,
-        updatedAt: data.updatedAt || null,
-      });
-    } catch (error) {
-      console.error('Failed to read admin availability', error);
-      return sendJson(res, 500, { message: 'Unable to load availability data.' });
-    }
-  }
-
-  if (req.method === 'PUT') {
-    let payload;
-    try {
-      payload = await parseJsonBody(req);
-    } catch (error) {
-      return sendJson(res, 400, { message: error.message || 'Invalid request body.' });
-    }
-
-    const normalized = normalizeAvailability(payload.availability);
-    const nowIso = new Date().toISOString();
-
-    try {
-      const existing = await readAdminData();
-      const nextData = {
-        availability: normalized,
-        sessions: normalizeSessions(existing.sessions),
-        updatedAt: nowIso,
-      };
-      const saved = await writeAdminData(nextData);
-      return sendJson(res, 200, {
-        availability: saved.availability,
-        updatedAt: saved.updatedAt,
-      });
-    } catch (error) {
-      console.error('Failed to update admin availability', error);
-      return sendJson(res, 500, { message: 'Unable to update availability data.' });
-    }
-  }
-
-  res.setHeader('Allow', 'GET, PUT, OPTIONS');
-  return sendJson(res, 405, { message: 'Method Not Allowed' });
-}
-
-async function handleAdminSessions(req, res, pathname) {
-  if (req.method === 'GET' && pathname === '/api/admin/sessions') {
-    try {
-      const data = await readAdminData();
-      return sendJson(res, 200, { sessions: normalizeSessions(data.sessions) });
-    } catch (error) {
-      console.error('Failed to read admin sessions', error);
-      return sendJson(res, 500, { message: 'Unable to load session data.' });
-    }
-  }
-
-  if (req.method === 'PATCH' && pathname.startsWith('/api/admin/sessions/')) {
-    const sessionId = decodeURIComponent(pathname.split('/').pop() || '');
-    if (!sessionId) {
-      return sendJson(res, 400, { message: 'Session identifier is required.' });
-    }
-
-    let payload;
-    try {
-      payload = await parseJsonBody(req);
-    } catch (error) {
-      return sendJson(res, 400, { message: error.message || 'Invalid request body.' });
-    }
-
-    const nowIso = new Date().toISOString();
-
-    try {
-      const data = await readAdminData();
-      const sessionsData = normalizeSessions(data.sessions);
-      const target = sessionsData.find(entry => entry.id === sessionId);
-      if (!target) {
-        return sendJson(res, 404, { message: 'Session not found.' });
-      }
-
-      if (payload.status && typeof payload.status === 'string') {
-        target.status = payload.status;
-      }
-
-      if (payload.action === 'cancel') {
-        target.status = 'canceled';
-        target.canceledAt = nowIso;
-      }
-
-      if (payload.date || payload.time) {
-        const nextDate = payload.date && isIsoDate(payload.date) ? payload.date : target.date;
-        const nextTime = payload.time && isTimeValue(payload.time) ? payload.time : target.time;
-        const availability = normalizeAvailability(data.availability);
-        const slots = availability[nextDate] || [];
-        if (!slots.includes(nextTime)) {
-          return sendJson(res, 400, { message: 'Selected slot is not available.' });
-        }
-        target.date = nextDate;
-        target.time = nextTime;
-      }
-
-      target.updatedAt = nowIso;
-
-      const saved = await writeAdminData({
-        availability: normalizeAvailability(data.availability),
-        sessions: sessionsData,
-        updatedAt: nowIso,
-      });
-
-      return sendJson(res, 200, { session: sessionsData.find(entry => entry.id === sessionId), updatedAt: saved.updatedAt });
-    } catch (error) {
-      console.error('Failed to update admin session', error);
-      return sendJson(res, 500, { message: 'Unable to update session.' });
-    }
-  }
-
-  res.setHeader('Allow', 'GET, PATCH, OPTIONS');
-  return sendJson(res, 405, { message: 'Method Not Allowed' });
 }
 
 async function handleSignUp(req, res) {
@@ -583,24 +304,11 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS' && pathname.startsWith('/api/')) {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, OPTIONS',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Max-Age': '86400',
     });
     return res.end();
-  }
-
-  if (pathname.startsWith('/api/admin/')) {
-    const adminUser = await requireAdminRequest(req, res);
-    if (!adminUser) {
-      return;
-    }
-
-    if (pathname === '/api/admin/availability') {
-      return handleAdminAvailability(req, res);
-    }
-
-    return handleAdminSessions(req, res, pathname);
   }
 
   if (pathname.startsWith('/api/')) {
