@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Checkout Cancelled</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="no-background">
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+    <a href="signin.html" class="auth-link">Sign In</a>
+    <a href="signup.html" class="auth-link auth-link--primary">Sign Up</a>
+  </nav>
+
+  <main class="status-page" data-cancel-page>
+    <section class="status-card">
+      <h2 class="status-title">Payment cancelled</h2>
+      <p class="status-message">
+        Your booking hasn't been finalised yet. Review the session details below and resume checkout when you're ready.
+      </p>
+      <h3 class="status-subtitle">Pending sessions</h3>
+      <ul class="booking-summary" data-booking-summary></ul>
+      <p class="booking-empty" data-booking-empty hidden>
+        There are no sessions waiting for payment. Visit the <a href="selectsubjects.html">subjects page</a> to make a booking.
+      </p>
+      <button class="status-button" type="button" data-retry-checkout>Return to checkout</button>
+    </section>
+  </main>
+
+  <footer class="normal-footer">
+    <p>© 2025 Buan Tutoring. All rights reserved.</p>
+  </footer>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>

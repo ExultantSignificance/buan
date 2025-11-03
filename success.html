@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Booking Confirmed</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="no-background">
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+    <a href="signin.html" class="auth-link">Sign In</a>
+    <a href="signup.html" class="auth-link auth-link--primary">Sign Up</a>
+  </nav>
+
+  <main class="status-page" data-success-page>
+    <section class="status-card">
+      <h2 class="status-title">Payment successful!</h2>
+      <p class="status-message">
+        Thank you for booking with Buan Tutoring. A confirmation email with your session details will arrive shortly.
+      </p>
+      <h3 class="status-subtitle">Your sessions</h3>
+      <ul class="booking-summary" data-booking-summary></ul>
+      <p class="booking-empty" data-booking-empty hidden>
+        We couldn't find any recent sessions. Please head back to <a href="selectsubjects.html">select your subjects</a>.
+      </p>
+      <p class="booking-total">Total paid: <span data-booking-total>$0.00</span></p>
+      <a class="status-button" href="booknow.html">Book another session</a>
+    </section>
+  </main>
+
+  <footer class="normal-footer">
+    <p>© 2025 Buan Tutoring. All rights reserved.</p>
+  </footer>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Buan Tutoring | Choose Subjects</title>
   <link rel="stylesheet" href="style.css" />
+  <script src="https://js.stripe.com/v3/"></script>
 </head>
 <body class="no-background">
   <header class="sticky-header">
@@ -37,6 +38,7 @@
 
   <footer class="subjects-footer">
     <button class="subjects-checkout" type="button" data-subjects-checkout disabled>checkout</button>
+    <p class="subjects-status" data-checkout-status hidden aria-live="polite"></p>
   </footer>
 
   <script type="module" src="script.js"></script>

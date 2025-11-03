@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Admin Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="no-background">
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+    <a href="signin.html" class="auth-link">Sign In</a>
+    <a href="signup.html" class="auth-link auth-link--primary">Sign Up</a>
+  </nav>
+
+  <main class="admin-page" data-admin-page>
+    <section class="admin-card">
+      <header class="admin-header">
+        <h2>Booking dashboard</h2>
+        <p class="admin-status" data-admin-status hidden aria-live="polite"></p>
+      </header>
+      <div class="admin-controls">
+        <label for="status-filter">Show:</label>
+        <select id="status-filter" data-status-filter>
+          <option value="all" selected>All bookings</option>
+          <option value="pending">Scheduled</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+      <div class="admin-table-wrapper">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th scope="col">Created</th>
+              <th scope="col">Sessions</th>
+              <th scope="col">Student</th>
+              <th scope="col">Total</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="admin-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody data-booking-rows></tbody>
+        </table>
+        <p class="admin-empty" data-admin-empty hidden>No bookings yet.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="normal-footer">
+    <p>© 2025 Buan Tutoring. All rights reserved.</p>
+  </footer>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>

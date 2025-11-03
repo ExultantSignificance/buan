@@ -8,6 +8,15 @@ import {
   onAuthStateChanged,
   updateProfile,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  doc,
+  updateDoc,
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAv-v8Q_bS3GtcYAAI-3PB4XL1WJv-_shE",
@@ -17,6 +26,17 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(app);
+const firestore = getFirestore(app);
+
+const ADMIN_UID = "ADMIN_FIREBASE_UID";
+const HOURLY_RATE = 60;
+const CREATE_CHECKOUT_SESSION_URL =
+  (window.ENV && window.ENV.CREATE_CHECKOUT_SESSION_URL) ||
+  "https://us-central1-buantutoring-2d3e9.cloudfunctions.net/createCheckoutSession";
+const STRIPE_PUBLISHABLE_KEY =
+  (window.ENV && window.ENV.STRIPE_PUBLISHABLE_KEY) ||
+  "YOUR_STRIPE_PUBLISHABLE_KEY";
+const PENDING_BOOKING_STORAGE_KEY = "buan.pendingBooking";
 
 // Buttons (make sure these exist in your HTML)
 const signupBtn = document.getElementById("signup");
@@ -103,6 +123,10 @@ const SUBJECT_OPTIONS = [
 ];
 
 const SUBJECT_VALUE_SET = new Set(SUBJECT_OPTIONS.map(option => option.value));
+const SUBJECT_LABEL_BY_VALUE = SUBJECT_OPTIONS.reduce((acc, option) => {
+  acc[option.value] = option.label;
+  return acc;
+}, {});
 
 const pruneSubjects = (subjects, times) => {
   const safeSubjects = subjects && typeof subjects === "object" && subjects !== null ? subjects : {};
@@ -177,6 +201,54 @@ const clearBookingState = () => {
   } catch (error) {
     console.warn("Unable to clear booking state", error);
   }
+};
+
+const storePendingBooking = payload => {
+  try {
+    if (!payload) {
+      sessionStorage.removeItem(PENDING_BOOKING_STORAGE_KEY);
+    } else {
+      sessionStorage.setItem(PENDING_BOOKING_STORAGE_KEY, JSON.stringify(payload));
+    }
+  } catch (error) {
+    console.warn("Unable to persist pending booking", error);
+  }
+};
+
+const readPendingBooking = () => {
+  try {
+    const raw = sessionStorage.getItem(PENDING_BOOKING_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch (error) {
+    console.warn("Unable to read pending booking", error);
+    return null;
+  }
+};
+
+const clearPendingBooking = () => {
+  try {
+    sessionStorage.removeItem(PENDING_BOOKING_STORAGE_KEY);
+  } catch (error) {
+    console.warn("Unable to clear pending booking", error);
+  }
+};
+
+let stripeClient = null;
+
+const getStripeClient = () => {
+  if (!STRIPE_PUBLISHABLE_KEY || STRIPE_PUBLISHABLE_KEY.includes("YOUR_STRIPE_PUBLISHABLE_KEY")) {
+    throw new Error("Stripe publishable key is not configured.");
+  }
+  if (typeof window.Stripe !== "function") {
+    throw new Error("Stripe.js has not finished loading.");
+  }
+  if (!stripeClient) {
+    stripeClient = window.Stripe(STRIPE_PUBLISHABLE_KEY);
+  }
+  return stripeClient;
 };
 
 const runWhenReady = callback => {
@@ -682,6 +754,29 @@ runWhenReady(() => {
       menu.classList.toggle('active');
     });
   }
+});
+
+runWhenReady(() => {
+  const menu = document.getElementById('menu');
+  if (!menu) return;
+
+  let adminLink = menu.querySelector('[data-admin-link]');
+  if (!adminLink) {
+    adminLink = document.createElement('a');
+    adminLink.href = 'admin.html';
+    adminLink.dataset.adminLink = '';
+    adminLink.textContent = 'Admin';
+    adminLink.style.display = 'none';
+    menu.appendChild(adminLink);
+  }
+
+  authClient.subscribe(({ user }) => {
+    const uid = user?.uid || user?.id || '';
+    const isAdmin = Boolean(uid) && uid === ADMIN_UID;
+    if (adminLink) {
+      adminLink.style.display = isAdmin ? '' : 'none';
+    }
+  });
 });
 
 runWhenReady(() => {
@@ -1192,6 +1287,7 @@ runWhenReady(() => {
   const helper = subjectsPage.querySelector("[data-subjects-helper]");
   const emptyState = subjectsPage.querySelector("[data-subjects-empty]");
   const checkoutButton = document.querySelector("[data-subjects-checkout]");
+  const checkoutStatus = document.querySelector("[data-checkout-status]");
 
   if (!list || !checkoutButton) return;
 
@@ -1210,6 +1306,13 @@ runWhenReady(() => {
   };
 
   const timeline = [];
+
+  const setCheckoutMessage = (type, message) => {
+    if (!checkoutStatus) return;
+    checkoutStatus.dataset.status = type || "";
+    checkoutStatus.textContent = message || "";
+    checkoutStatus.hidden = !message;
+  };
 
   dates.forEach(dateKey => {
     const timeList = storedTimes[dateKey];
@@ -1281,16 +1384,21 @@ runWhenReady(() => {
     const completed = countCompleted();
     if (helper) {
       if (completed === 0) {
-        helper.textContent = "Select a subject for the highlighted session.";
+        helper.textContent = "Choose a subject for each session to continue.";
       } else if (completed < totalSlots) {
-        helper.textContent = `${completed} of ${totalSlots} sessions have subjects.`;
+        helper.textContent = `${completed} of ${totalSlots} sessions selected.`;
       } else {
-        helper.textContent = "All subjects chosen. You can continue to checkout.";
+        helper.textContent = "All subjects chosen. You're ready to check out.";
       }
     }
     const ready = completed === totalSlots;
     checkoutButton.disabled = !ready;
-    checkoutButton.setAttribute("aria-disabled", ready ? "false" : "true");
+    if (ready) {
+      checkoutButton.removeAttribute("aria-disabled");
+    } else {
+      checkoutButton.setAttribute("aria-disabled", "true");
+      setCheckoutMessage("", "");
+    }
   };
 
   const updateCardCompletion = card => {
@@ -1415,10 +1523,447 @@ runWhenReady(() => {
   });
   window.addEventListener("resize", updateFocusedCard);
 
-  checkoutButton.addEventListener("click", () => {
-    if (checkoutButton.disabled) return;
+  checkoutButton.addEventListener("click", async () => {
+    if (checkoutButton.disabled || checkoutButton.dataset.loading === "true") {
+      return;
+    }
+
+    const user = authClient.getCurrentUser();
+    if (!user) {
+      redirectToSignIn();
+      return;
+    }
+
     saveState();
-    window.location.href = "checkout.html";
+
+    const sessions = timeline.map(entry => {
+      const subjectValue = bookingData.subjects[entry.date]?.[entry.time];
+      const subjectLabel = SUBJECT_LABEL_BY_VALUE[subjectValue] || "Tutoring session";
+      return {
+        date: entry.date,
+        time: entry.time,
+        subject: subjectLabel,
+        subjectValue: subjectValue || "",
+        duration: 1,
+        price: HOURLY_RATE,
+      };
+    });
+
+    if (!sessions.length) {
+      setCheckoutMessage("error", "No sessions found. Choose a time before checking out.");
+      return;
+    }
+
+    const totalPrice = sessions.reduce((acc, session) => acc + (Number(session.price) || 0), 0);
+    const primarySession = sessions[0];
+    const booking = {
+      userId: user.uid || user.id,
+      email: user.email || "",
+      subject: primarySession.subject,
+      date: primarySession.date,
+      time: primarySession.time,
+      duration: 1,
+      price: totalPrice,
+      totalSessions: sessions.length,
+      sessions,
+    };
+
+    storePendingBooking({ booking, sessions });
+
+    checkoutButton.disabled = true;
+    checkoutButton.dataset.loading = "true";
+    setCheckoutMessage("info", "Redirecting to secure checkout...");
+
+    try {
+      const response = await fetch(CREATE_CHECKOUT_SESSION_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ booking }),
+      });
+
+      if (!response.ok) {
+        let message = "Unable to start checkout. Please try again.";
+        try {
+          const errorPayload = await response.json();
+          if (errorPayload && typeof errorPayload.error === "string") {
+            message = errorPayload.error;
+          }
+        } catch (error) {
+          console.warn("Unable to parse checkout error", error);
+        }
+        throw new Error(message);
+      }
+
+      const payload = await response.json();
+      if (!payload || typeof payload.id !== "string") {
+        throw new Error("Invalid checkout session response.");
+      }
+
+      const stripe = getStripeClient();
+      const { error } = await stripe.redirectToCheckout({ sessionId: payload.id });
+      if (error) {
+        throw new Error(error.message || "Stripe checkout failed to start.");
+      }
+    } catch (error) {
+      console.error("Unable to start Stripe checkout", error);
+      setCheckoutMessage("error", error.message || "Unable to start checkout. Please try again.");
+      storePendingBooking(null);
+      checkoutButton.disabled = false;
+      delete checkoutButton.dataset.loading;
+    }
+  });
+});
+
+runWhenReady(() => {
+  const successPage = document.querySelector('[data-success-page]');
+  if (!successPage) return;
+
+  const summaryList = successPage.querySelector('[data-booking-summary]');
+  const totalEl = successPage.querySelector('[data-booking-total]');
+  const emptyState = successPage.querySelector('[data-booking-empty]');
+
+  const pending = readPendingBooking();
+  const sessions = Array.isArray(pending?.sessions) ? pending.sessions : [];
+
+  const formatterDate = new Intl.DateTimeFormat(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+  const formatterTime = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  const formatterCurrency = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'AUD',
+  });
+
+  if (!sessions.length || !summaryList) {
+    if (summaryList) {
+      summaryList.innerHTML = '';
+    }
+    if (emptyState) {
+      emptyState.hidden = false;
+    }
+    if (totalEl) {
+      totalEl.textContent = formatterCurrency.format(0);
+    }
+    clearPendingBooking();
+    return;
+  }
+
+  if (emptyState) {
+    emptyState.hidden = true;
+  }
+
+  summaryList.innerHTML = '';
+  let total = 0;
+
+  sessions.forEach(session => {
+    const li = document.createElement('li');
+    li.className = 'booking-summary__item';
+    const date = session.date ? formatterDate.format(new Date(`${session.date}T00:00:00`)) : 'Scheduled session';
+    const time = session.time ? formatterTime.format(new Date(`1970-01-01T${session.time}:00`)) : '';
+    const subjectLabel = session.subject || SUBJECT_LABEL_BY_VALUE[session.subjectValue] || 'Tutoring session';
+    const price = Number(session.price) || 0;
+    total += price;
+
+    li.innerHTML = `
+      <div class="booking-summary__subject">${subjectLabel}</div>
+      <div class="booking-summary__datetime">${date}${time ? ` · ${time}` : ''}</div>
+      <div class="booking-summary__price">${formatterCurrency.format(price)}</div>
+    `;
+    summaryList.appendChild(li);
+  });
+
+  if (totalEl) {
+    totalEl.textContent = formatterCurrency.format(total);
+  }
+
+  clearPendingBooking();
+});
+
+runWhenReady(() => {
+  const cancelPage = document.querySelector('[data-cancel-page]');
+  if (!cancelPage) return;
+
+  const summaryList = cancelPage.querySelector('[data-booking-summary]');
+  const emptyState = cancelPage.querySelector('[data-booking-empty]');
+  const retryButton = cancelPage.querySelector('[data-retry-checkout]');
+
+  const pending = readPendingBooking();
+  const sessions = Array.isArray(pending?.sessions) ? pending.sessions : [];
+
+  if (retryButton) {
+    retryButton.addEventListener('click', () => {
+      window.location.href = 'selectsubjects.html';
+    });
+  }
+
+  if (!summaryList || !sessions.length) {
+    if (summaryList) {
+      summaryList.innerHTML = '';
+    }
+    if (emptyState) {
+      emptyState.hidden = false;
+    }
+    return;
+  }
+
+  if (emptyState) {
+    emptyState.hidden = true;
+  }
+
+  const formatterDate = new Intl.DateTimeFormat(undefined, {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const formatterTime = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+  summaryList.innerHTML = '';
+  sessions.forEach(session => {
+    const li = document.createElement('li');
+    li.className = 'booking-summary__item';
+    const date = session.date ? formatterDate.format(new Date(`${session.date}T00:00:00`)) : 'Scheduled session';
+    const time = session.time ? formatterTime.format(new Date(`1970-01-01T${session.time}:00`)) : '';
+    const subjectLabel = session.subject || SUBJECT_LABEL_BY_VALUE[session.subjectValue] || 'Tutoring session';
+
+    li.innerHTML = `
+      <div class="booking-summary__subject">${subjectLabel}</div>
+      <div class="booking-summary__datetime">${date}${time ? ` · ${time}` : ''}</div>
+    `;
+    summaryList.appendChild(li);
+  });
+});
+
+runWhenReady(() => {
+  const adminPage = document.querySelector('[data-admin-page]');
+  if (!adminPage) return;
+
+  const tableBody = adminPage.querySelector('[data-booking-rows]');
+  const statusEl = adminPage.querySelector('[data-admin-status]');
+  const emptyState = adminPage.querySelector('[data-admin-empty]');
+  const filterSelect = adminPage.querySelector('[data-status-filter]');
+
+  if (!tableBody) return;
+
+  let unsubscribe = null;
+  let hasRedirected = false;
+  let currentFilter = 'all';
+  let bookings = [];
+
+  const setStatusMessage = (type, message) => {
+    if (!statusEl) return;
+    statusEl.dataset.status = type || '';
+    statusEl.textContent = message || '';
+    statusEl.hidden = !message;
+  };
+
+  const stopListening = () => {
+    if (typeof unsubscribe === 'function') {
+      unsubscribe();
+      unsubscribe = null;
+    }
+  };
+
+  const parseSessions = value => {
+    if (Array.isArray(value)) {
+      return value;
+    }
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        console.warn('Unable to parse session metadata', error);
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const render = () => {
+    tableBody.innerHTML = '';
+    const filtered = bookings.filter(booking => {
+      if (currentFilter === 'completed') return booking.completed;
+      if (currentFilter === 'pending') return !booking.completed;
+      return true;
+    });
+
+    if (!filtered.length) {
+      if (emptyState) {
+        emptyState.hidden = false;
+      }
+      return;
+    }
+
+    if (emptyState) {
+      emptyState.hidden = true;
+    }
+
+    const formatterDate = new Intl.DateTimeFormat(undefined, {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const formatterTime = new Intl.DateTimeFormat(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    const formatterCurrency = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: 'AUD',
+    });
+
+    filtered.forEach(booking => {
+      const row = document.createElement('tr');
+      row.dataset.bookingId = booking.id;
+
+      const createdCell = document.createElement('td');
+      createdCell.textContent = booking.createdAt
+        ? `${formatterDate.format(booking.createdAt)} · ${formatterTime.format(booking.createdAt)}`
+        : '—';
+
+      const sessionCell = document.createElement('td');
+      const sessions = parseSessions(booking.sessions);
+      if (sessions.length) {
+        const list = document.createElement('ul');
+        list.className = 'admin-session-list';
+        sessions.forEach(session => {
+          const item = document.createElement('li');
+          const subject = session.subject || SUBJECT_LABEL_BY_VALUE[session.subjectValue] || booking.subject;
+          const date = session.date ? formatterDate.format(new Date(`${session.date}T00:00:00`)) : booking.date;
+          const time = session.time ? formatterTime.format(new Date(`1970-01-01T${session.time}:00`)) : booking.time;
+          item.textContent = `${subject}${date ? ` · ${date}` : ''}${time ? ` · ${time}` : ''}`;
+          list.appendChild(item);
+        });
+        sessionCell.appendChild(list);
+      } else {
+        const subject = booking.subject || 'Tutoring session';
+        const date = booking.date ? formatterDate.format(new Date(`${booking.date}T00:00:00`)) : '';
+        const time = booking.time ? formatterTime.format(new Date(`1970-01-01T${booking.time}:00`)) : '';
+        sessionCell.textContent = `${subject}${date ? ` · ${date}` : ''}${time ? ` · ${time}` : ''}`;
+      }
+
+      const emailCell = document.createElement('td');
+      emailCell.textContent = booking.email || '—';
+
+      const priceCell = document.createElement('td');
+      priceCell.textContent = formatterCurrency.format(booking.price || 0);
+
+      const statusCell = document.createElement('td');
+      statusCell.textContent = booking.completed ? 'Completed' : 'Scheduled';
+
+      const actionCell = document.createElement('td');
+      const toggleButton = document.createElement('button');
+      toggleButton.type = 'button';
+      toggleButton.className = 'admin-toggle';
+      toggleButton.textContent = booking.completed ? 'Mark as scheduled' : 'Mark as completed';
+      toggleButton.addEventListener('click', async () => {
+        toggleButton.disabled = true;
+        try {
+          const bookingRef = doc(firestore, 'bookings', booking.id);
+          await updateDoc(bookingRef, { completed: !booking.completed });
+          setStatusMessage('success', 'Booking updated.');
+          window.setTimeout(() => setStatusMessage('', ''), 1500);
+        } catch (error) {
+          console.error('Unable to update booking', error);
+          setStatusMessage('error', 'Unable to update booking. Please try again.');
+        } finally {
+          toggleButton.disabled = false;
+        }
+      });
+      actionCell.appendChild(toggleButton);
+
+      row.appendChild(createdCell);
+      row.appendChild(sessionCell);
+      row.appendChild(emailCell);
+      row.appendChild(priceCell);
+      row.appendChild(statusCell);
+      row.appendChild(actionCell);
+
+      tableBody.appendChild(row);
+    });
+  };
+
+  const startListening = () => {
+    if (unsubscribe) return;
+    const bookingsRef = collection(firestore, 'bookings');
+    const bookingsQuery = query(bookingsRef, orderBy('createdAt', 'desc'));
+    unsubscribe = onSnapshot(
+      bookingsQuery,
+      snapshot => {
+        bookings = snapshot.docs.map(docSnap => {
+          const data = docSnap.data();
+          const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt ? new Date(data.createdAt) : null);
+          return {
+            id: docSnap.id,
+            subject: data.subject || 'Tutoring session',
+            date: data.date || '',
+            time: data.time || '',
+            email: data.email || '',
+            price: Number(data.price) || 0,
+            totalSessions: Number(data.totalSessions) || 1,
+            sessions: data.sessions || [],
+            paid: Boolean(data.paid),
+            completed: Boolean(data.completed),
+            createdAt,
+          };
+        });
+        setStatusMessage('', '');
+        render();
+      },
+      error => {
+        console.error('Unable to fetch bookings', error);
+        setStatusMessage('error', 'Unable to load bookings. Please try again.');
+      },
+    );
+  };
+
+  if (filterSelect) {
+    filterSelect.addEventListener('change', () => {
+      currentFilter = filterSelect.value || 'all';
+      render();
+    });
+  }
+
+  authClient.subscribe(({ user }) => {
+    if (!user) {
+      bookings = [];
+      render();
+      stopListening();
+      if (!hasRedirected) {
+        hasRedirected = true;
+        setStatusMessage('info', 'Please sign in to view bookings.');
+        window.setTimeout(() => {
+          redirectToSignIn();
+        }, 500);
+      }
+      return;
+    }
+
+    const uid = user.uid || user.id;
+    if (uid !== ADMIN_UID) {
+      bookings = [];
+      render();
+      stopListening();
+      if (!hasRedirected) {
+        hasRedirected = true;
+        setStatusMessage('error', 'You do not have access to the admin dashboard.');
+        window.setTimeout(() => {
+          window.location.replace('signin.html');
+        }, 800);
+      }
+      return;
+    }
+
+    setStatusMessage('', '');
+    startListening();
   });
 });
 
