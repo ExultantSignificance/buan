@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Admin Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="no-background">
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+    <a href="signin.html" class="auth-link">Sign In</a>
+    <a href="signup.html" class="auth-link auth-link--primary">Sign Up</a>
+  </nav>
+
+  <main class="admin-page" data-admin-page>
+    <section class="admin-panel">
+      <header class="admin-header">
+        <h2 class="admin-title">Bookings dashboard.</h2>
+        <p class="admin-intro">Monitor and update confirmed tutoring sessions.</p>
+      </header>
+
+      <p class="admin-loading" data-admin-loading>Loading bookings…</p>
+      <p class="admin-error" data-admin-error hidden></p>
+      <p class="admin-empty" data-admin-empty hidden>No bookings yet. Check back after your first payment.</p>
+
+      <div class="admin-table-wrapper">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Subjects</th>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Amount</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody data-admin-rows></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="normal-footer">
+    <p>© 2025 Buan Tutoring. All rights reserved.</p>
+  </footer>
+
+  <script>
+    window.BUAN_ADMIN_UID = window.BUAN_ADMIN_UID || "ADMIN_FIREBASE_UID";
+  </script>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
