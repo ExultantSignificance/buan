@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Checkout</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://js.stripe.com/v3/"></script>
+</head>
+<body class="no-background">
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+    <a href="signin.html" class="auth-link">Sign In</a>
+    <a href="signup.html" class="auth-link auth-link--primary">Sign Up</a>
+  </nav>
+
+  <main class="checkout-page" data-checkout-page>
+    <section class="checkout-panel">
+      <header class="checkout-header">
+        <h2 class="checkout-title">Secure checkout.</h2>
+        <p class="checkout-intro">Review your sessions and complete payment with Stripe.</p>
+      </header>
+
+      <section class="checkout-summary">
+        <h3 class="checkout-summary__title">Booking summary</h3>
+        <ul class="checkout-summary__list" data-checkout-summary></ul>
+        <div class="checkout-summary__total">
+          <span>Total</span>
+          <strong data-checkout-total></strong>
+        </div>
+      </section>
+
+      <section class="checkout-payment">
+        <h3 class="checkout-payment__title">Pay with Stripe Embedded Checkout</h3>
+        <div id="checkout" class="checkout-embed"></div>
+        <p class="checkout-status" data-checkout-status aria-live="polite"></p>
+        <div class="checkout-divider">
+          <span>or</span>
+        </div>
+        <button class="checkout-redirect" type="button" data-checkout-redirect>
+          Continue to secure Stripe page
+        </button>
+      </section>
+    </section>
+  </main>
+
+  <footer class="normal-footer">
+    <p>© 2025 Buan Tutoring. All rights reserved.</p>
+  </footer>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>

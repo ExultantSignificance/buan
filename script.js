@@ -8,15 +8,30 @@ import {
   onAuthStateChanged,
   updateProfile,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  onSnapshot,
+  doc,
+  updateDoc,
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAv-v8Q_bS3GtcYAAI-3PB4XL1WJv-_shE",
+  apiKey: "AIzaSyBXK08ePeRzS6_5bXoKKEcSLWbbgdf_Nyo",
   authDomain: "buantutoring-2d3e9.firebaseapp.com",
   projectId: "buantutoring-2d3e9",
+  storageBucket: "buantutoring-2d3e9.firebasestorage.app",
+  messagingSenderId: "990594717631",
+  appId: "1:990594717631:web:24625a12ebc7c23690b3ee",
+  measurementId: "G-5QKXHDMS72",
 };
 
 const app = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(app);
+const firestore = getFirestore(app);
 
 // Buttons (make sure these exist in your HTML)
 const signupBtn = document.getElementById("signup");
@@ -92,17 +107,67 @@ if (signinForm) {
 
 /*not firebase*/
 const BOOKING_STORAGE_KEY = "buan.bookingState";
+const PENDING_BOOKING_KEY = "pendingBooking";
+const STRIPE_PUBLISHABLE_KEY = "pk_live_51SJDOtF9Dbt33lFIbAqcbH9jfcTMyssD1VXIcIbS4ybhWIPYkrtzhywDBijTUHbzmhXlXIr8YmerGPHvlEyzvuC200RIpQC4EY";
+const FUNCTIONS_BASE_URL = "https://us-central1-buantutoring-2d3e9.cloudfunctions.net";
+const CREATE_SESSION_ENDPOINT = `${FUNCTIONS_BASE_URL}/createCheckoutSession`;
 
-const SUBJECT_OPTIONS = [
-  { value: "specialist-mathematics", label: "Specialist Mathematics" },
-  { value: "mathematical-methods", label: "Mathematical Methods" },
-  { value: "physics", label: "Physics" },
-  { value: "chemistry", label: "Chemistry" },
-  { value: "general-english", label: "General English" },
-  { value: "grade-7-9", label: "Grade 7-9" },
+const DEFAULT_SUBJECT_OPTIONS = [
+  {
+    value: "chemistry",
+    label: "Chemistry",
+    price: 50,
+    priceId: "price_1SOJWvF9Dbt33lFImPMXRFLU",
+  },
+  {
+    value: "english",
+    label: "English",
+    price: 40,
+    priceId: "price_1SOJXBF9Dbt33lFInArwfsAC",
+  },
+  {
+    value: "grade-7-9",
+    label: "Grade 7–9",
+    price: 35,
+    priceId: "price_1SOJXeF9Dbt33lFIwFdfcfPz",
+  },
+  {
+    value: "mathematical-methods",
+    label: "Mathematical Methods",
+    price: 55,
+    priceId: "price_1SOJVsF9Dbt33lFIpgloVwN3",
+  },
+  {
+    value: "physics",
+    label: "Physics",
+    price: 50,
+    priceId: "price_1SOJWCF9Dbt33lFIXZPB1rv7",
+  },
+  {
+    value: "specialist-mathematics",
+    label: "Specialist Mathematics",
+    price: 60,
+    priceId: "price_1SOJVWF9Dbt33lFIUiaiE8tO",
+  },
 ];
 
+let SUBJECT_OPTIONS = [...DEFAULT_SUBJECT_OPTIONS];
 const SUBJECT_VALUE_SET = new Set(SUBJECT_OPTIONS.map(option => option.value));
+
+const subjectCatalog = new Map();
+SUBJECT_OPTIONS.forEach(option => {
+  subjectCatalog.set(option.value, option);
+});
+
+const setSubjectOptions = options => {
+  SUBJECT_OPTIONS = options.filter(option => option && option.value);
+  SUBJECT_VALUE_SET.clear();
+  subjectCatalog.clear();
+  SUBJECT_OPTIONS.forEach(option => {
+    SUBJECT_VALUE_SET.add(option.value);
+    subjectCatalog.set(option.value, option);
+  });
+};
 
 const pruneSubjects = (subjects, times) => {
   const safeSubjects = subjects && typeof subjects === "object" && subjects !== null ? subjects : {};
@@ -131,6 +196,60 @@ const pruneSubjects = (subjects, times) => {
 
   return cleaned;
 };
+
+const subjectService = (() => {
+  let loadPromise = null;
+
+  const normaliseOption = (id, data) => {
+    if (!id) return null;
+    const label = typeof data?.name === "string" && data.name.trim()
+      ? data.name.trim()
+      : id;
+    const priceId = typeof data?.priceId === "string" ? data.priceId : "";
+    const price = typeof data?.price === "number" ? data.price : null;
+    return {
+      value: id,
+      label,
+      price,
+      priceId,
+    };
+  };
+
+  const loadSubjects = async () => {
+    try {
+      const subjectQuery = query(collection(firestore, "subjects"));
+      const snapshot = await getDocs(subjectQuery);
+      const options = [];
+      snapshot.forEach(docSnapshot => {
+        const option = normaliseOption(docSnapshot.id, docSnapshot.data());
+        if (option) {
+          options.push(option);
+        }
+      });
+      options.sort((a, b) => a.label.localeCompare(b.label));
+      if (options.length) {
+        setSubjectOptions(options);
+      } else {
+        setSubjectOptions([...DEFAULT_SUBJECT_OPTIONS]);
+      }
+    } catch (error) {
+      console.error("Unable to load subjects from Firestore", error);
+      setSubjectOptions([...DEFAULT_SUBJECT_OPTIONS]);
+    }
+    return [...SUBJECT_OPTIONS];
+  };
+
+  return {
+    ensureLoaded: () => {
+      if (!loadPromise) {
+        loadPromise = loadSubjects();
+      }
+      return loadPromise;
+    },
+    getOptions: () => [...SUBJECT_OPTIONS],
+    getOptionById: id => subjectCatalog.get(id) || null,
+  };
+})();
 
 const subjectsEqual = (a, b) => {
   const aKeys = Object.keys(a || {});
@@ -179,6 +298,27 @@ const clearBookingState = () => {
   }
 };
 
+const readPendingBooking = () => {
+  try {
+    const raw = sessionStorage.getItem(PENDING_BOOKING_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch (error) {
+    console.warn("Unable to read pending booking", error);
+    return null;
+  }
+};
+
+const clearPendingBooking = () => {
+  try {
+    sessionStorage.removeItem(PENDING_BOOKING_KEY);
+  } catch (error) {
+    console.warn("Unable to clear pending booking", error);
+  }
+};
+
 const runWhenReady = callback => {
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", callback);
@@ -192,6 +332,44 @@ const buildRelativeLocation = () => {
   const search = window.location.search || "";
   const hash = window.location.hash || "";
   return `${path}${search}${hash}`;
+};
+
+const formatCurrency = (amount, currency = "AUD") => {
+  if (typeof amount !== "number" || Number.isNaN(amount)) return "";
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 2,
+    }).format(amount);
+  } catch (error) {
+    console.warn("Unable to format currency", error);
+    return `$${amount.toFixed(2)}`;
+  }
+};
+
+const formatDisplayDate = iso => {
+  if (!iso) return "";
+  const date = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return iso;
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  return formatter.format(date);
+};
+
+const formatDisplayTime = timeValue => {
+  if (!timeValue) return "";
+  const date = new Date(`1970-01-01T${timeValue}:00`);
+  if (Number.isNaN(date.getTime())) return timeValue;
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return formatter.format(date);
 };
 
 const redirectToSignIn = () => {
@@ -546,6 +724,294 @@ runWhenReady(() => {
     authLinks.forEach(link => {
       link.style.display = user ? "none" : "";
     });
+  });
+});
+
+runWhenReady(() => {
+  const successPage = document.querySelector("[data-success-page]");
+  if (!successPage) return;
+
+  clearPendingBooking();
+  clearBookingState();
+});
+
+runWhenReady(() => {
+  const cancelPage = document.querySelector("[data-cancel-page]");
+  if (!cancelPage) return;
+
+  clearPendingBooking();
+});
+
+runWhenReady(() => {
+  const checkoutPage = document.querySelector("[data-checkout-page]");
+  if (!checkoutPage) return;
+
+  if (!requireAuthForBooking()) {
+    return;
+  }
+
+  const summaryList = checkoutPage.querySelector("[data-checkout-summary]");
+  const totalEl = checkoutPage.querySelector("[data-checkout-total]");
+  const statusEl = checkoutPage.querySelector("[data-checkout-status]");
+  const redirectButton = checkoutPage.querySelector("[data-checkout-redirect]");
+  const checkoutContainer = checkoutPage.querySelector("#checkout");
+
+  const booking = readPendingBooking();
+  if (!booking || !Array.isArray(booking.sessions) || !booking.sessions.length) {
+    if (statusEl) {
+      statusEl.textContent = "No booking found. Please start again.";
+    }
+    window.setTimeout(() => {
+      window.location.href = "selectsubjects.html";
+    }, 1200);
+    return;
+  }
+
+  const sessions = booking.sessions;
+  const currency = booking.currency || "AUD";
+
+  if (summaryList) {
+    summaryList.innerHTML = "";
+    sessions.forEach(session => {
+      const item = document.createElement("li");
+      item.className = "checkout-summary__item";
+      const subjectText = session.subject || session.subjectId || "Session";
+      const dateText = formatDisplayDate(session.date);
+      const timeText = formatDisplayTime(session.time);
+      const priceText = typeof session.price === "number"
+        ? formatCurrency(session.price, currency)
+        : "";
+      item.innerHTML = `
+        <div class="checkout-summary__details">
+          <span class="checkout-summary__subject">${subjectText}</span>
+          <span class="checkout-summary__datetime">${dateText} · ${timeText}</span>
+        </div>
+        <span class="checkout-summary__price">${priceText}</span>
+      `;
+      summaryList.appendChild(item);
+    });
+  }
+
+  if (totalEl && typeof booking.totalAmount === "number") {
+    totalEl.textContent = formatCurrency(booking.totalAmount, currency);
+  }
+
+  const createSession = async uiMode => {
+    if (statusEl) {
+      statusEl.textContent = "Preparing secure checkout...";
+    }
+
+    const user = firebaseAuth.currentUser;
+
+    const payload = {
+      booking,
+      uiMode,
+      customerEmail: user?.email || null,
+      userId: user?.uid || null,
+    };
+
+    const response = await fetch(CREATE_SESSION_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = data?.error || "Unable to create a checkout session.";
+      throw new Error(message);
+    }
+
+    return data;
+  };
+
+  let embeddedSessionPromise = null;
+
+  const mountEmbeddedCheckout = async () => {
+    if (!checkoutContainer) return;
+    if (!embeddedSessionPromise) {
+      embeddedSessionPromise = createSession("embedded");
+    }
+
+    try {
+      const { client_secret: clientSecret } = await embeddedSessionPromise;
+      if (!clientSecret) {
+        throw new Error("Stripe did not return a client secret.");
+      }
+      const { loadStripe } = await import("https://js.stripe.com/v3/");
+      const stripe = await loadStripe(STRIPE_PUBLISHABLE_KEY);
+      if (!stripe) {
+        throw new Error("Stripe.js failed to load.");
+      }
+      stripe.initEmbeddedCheckout({ clientSecret }).mount(checkoutContainer);
+      if (statusEl) {
+        statusEl.textContent = "";
+      }
+    } catch (error) {
+      console.error("Unable to initialise embedded checkout", error);
+      if (statusEl) {
+        statusEl.textContent = error.message || "Embedded checkout is unavailable. Use the secure redirect instead.";
+      }
+    }
+  };
+
+  mountEmbeddedCheckout();
+
+  if (redirectButton) {
+    redirectButton.addEventListener("click", async () => {
+      redirectButton.disabled = true;
+      if (statusEl) {
+        statusEl.textContent = "Opening Stripe checkout...";
+      }
+      try {
+        const data = await createSession("hosted");
+        if (data?.url) {
+          window.location.href = data.url;
+        } else if (statusEl) {
+          statusEl.textContent = "Stripe did not return a redirect URL.";
+        }
+      } catch (error) {
+        console.error("Unable to start redirect checkout", error);
+        if (statusEl) {
+          statusEl.textContent = error.message || "Unable to open Stripe checkout.";
+        }
+        redirectButton.disabled = false;
+      }
+    });
+  }
+});
+
+runWhenReady(() => {
+  const adminPage = document.querySelector("[data-admin-page]");
+  if (!adminPage) return;
+
+  const ADMIN_FIREBASE_UID = window.BUAN_ADMIN_UID || "ADMIN_FIREBASE_UID";
+  const tableBody = adminPage.querySelector("[data-admin-rows]");
+  const emptyState = adminPage.querySelector("[data-admin-empty]");
+  const loadingState = adminPage.querySelector("[data-admin-loading]");
+  const errorEl = adminPage.querySelector("[data-admin-error]");
+  let bookingsUnsubscribe = null;
+
+  const renderEmpty = isEmpty => {
+    if (emptyState) emptyState.hidden = !isEmpty;
+  };
+
+  const setLoading = isLoading => {
+    if (loadingState) loadingState.hidden = !isLoading;
+  };
+
+  const setError = message => {
+    if (errorEl) {
+      errorEl.textContent = message || "";
+      errorEl.hidden = !message;
+    }
+  };
+
+  const renderRows = bookings => {
+    if (!tableBody) return;
+    tableBody.innerHTML = "";
+    bookings.forEach(booking => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${booking.email || "unknown"}</td>
+        <td>${booking.summary || ""}</td>
+        <td>${booking.dateText || ""}</td>
+        <td>${booking.timeText || ""}</td>
+        <td>${booking.amountText || ""}</td>
+        <td>
+          <select data-admin-status data-id="${booking.id}">
+            <option value="paid" ${booking.status === "paid" ? "selected" : ""}>Paid</option>
+            <option value="scheduled" ${booking.status === "scheduled" ? "selected" : ""}>Scheduled</option>
+            <option value="completed" ${booking.status === "completed" ? "selected" : ""}>Completed</option>
+          </select>
+        </td>
+      `;
+      tableBody.appendChild(row);
+    });
+    renderEmpty(bookings.length === 0);
+  };
+
+  const attachStatusListener = () => {
+    if (!tableBody) return;
+    tableBody.addEventListener("change", async event => {
+      const select = event.target;
+      if (!(select instanceof HTMLSelectElement)) return;
+      if (!select.matches("[data-admin-status]")) return;
+      const bookingId = select.dataset.id;
+      const value = select.value;
+      if (!bookingId) return;
+      try {
+        const docRef = doc(firestore, "bookings", bookingId);
+        await updateDoc(docRef, { status: value, updatedAt: new Date().toISOString() });
+      } catch (error) {
+        console.error("Unable to update booking status", error);
+        setError("Unable to update booking status. Try again later.");
+      }
+    });
+  };
+
+  attachStatusListener();
+
+  setLoading(true);
+
+  const authUnsubscribe = onAuthStateChanged(firebaseAuth, user => {
+    if (bookingsUnsubscribe) {
+      bookingsUnsubscribe();
+      bookingsUnsubscribe = null;
+    }
+
+    if (!user) {
+      const redirect = encodeURIComponent("admin.html");
+      window.location.replace(`signin.html?redirect=${redirect}`);
+      return;
+    }
+
+    if (user.uid !== ADMIN_FIREBASE_UID) {
+      setLoading(false);
+      renderEmpty(true);
+      setError("You do not have permission to view this page.");
+      return;
+    }
+
+    const bookingsQuery = query(collection(firestore, "bookings"), orderBy("createdAt", "desc"));
+    bookingsUnsubscribe = onSnapshot(bookingsQuery, snapshot => {
+      const bookings = snapshot.docs.map(docSnapshot => {
+        const data = docSnapshot.data();
+        const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+        const firstSession = sessions[0] || {};
+        const summary = sessions
+          .map(session => `${session.subject || session.subjectId || "Session"}`)
+          .join(", ");
+        return {
+          id: docSnapshot.id,
+          email: data.email || "unknown",
+          summary,
+          dateText: formatDisplayDate(firstSession.date),
+          timeText: formatDisplayTime(firstSession.time),
+          amountText: typeof data.amount === "number" ? formatCurrency(data.amount, data.currency || "AUD") : "",
+          status: data.status || (data.paid ? "paid" : ""),
+        };
+      });
+      setLoading(false);
+      setError("");
+      renderRows(bookings);
+    }, error => {
+      console.error("Unable to load bookings", error);
+      setLoading(false);
+      setError("Unable to load bookings. Try again later.");
+    });
+  });
+
+  window.addEventListener("beforeunload", () => {
+    if (bookingsUnsubscribe) {
+      bookingsUnsubscribe();
+      bookingsUnsubscribe = null;
+    }
+    if (typeof authUnsubscribe === "function") {
+      authUnsubscribe();
+    }
   });
 });
 
@@ -1180,7 +1646,7 @@ runWhenReady(() => {
   window.addEventListener("resize", updateFocusedCard);
 });
 
-runWhenReady(() => {
+runWhenReady(async () => {
   const subjectsPage = document.querySelector("[data-subjects-page]");
   if (!subjectsPage) return;
 
@@ -1194,6 +1660,9 @@ runWhenReady(() => {
   const checkoutButton = document.querySelector("[data-subjects-checkout]");
 
   if (!list || !checkoutButton) return;
+
+  await subjectService.ensureLoaded();
+  const subjectOptions = subjectService.getOptions();
 
   const bookingState = readBookingState();
   const dates = Array.isArray(bookingState.dates) ? [...bookingState.dates].sort() : [];
@@ -1274,7 +1743,8 @@ runWhenReady(() => {
     timeline.reduce((acc, entry) => {
       const value =
         bookingData.subjects[entry.date] && bookingData.subjects[entry.date][entry.time];
-      return acc + (value ? 1 : 0);
+      if (!value) return acc;
+      return acc + (subjectService.getOptionById(value) ? 1 : 0);
     }, 0);
 
   const updateProgress = () => {
@@ -1298,7 +1768,8 @@ runWhenReady(() => {
     const timeValue = card.dataset.time;
     const current =
       bookingData.subjects[dateKey] && bookingData.subjects[dateKey][timeValue];
-    card.classList.toggle("subject-card--complete", Boolean(current));
+    const isValid = current ? Boolean(subjectService.getOptionById(current)) : false;
+    card.classList.toggle("subject-card--complete", isValid);
   };
 
   const updateFocusedCard = () => {
@@ -1329,6 +1800,12 @@ runWhenReady(() => {
     if (!bookingData.subjects[dateKey]) {
       bookingData.subjects[dateKey] = {};
     }
+
+    if (!subjectService.getOptionById(subjectValue)) {
+      delete bookingData.subjects[dateKey][timeValue];
+      return;
+    }
+
     bookingData.subjects[dateKey][timeValue] = subjectValue;
 
     const card = cardLookup.get(keyFor(dateKey, timeValue));
@@ -1376,7 +1853,7 @@ runWhenReady(() => {
     const storedValue =
       bookingData.subjects[entry.date] && bookingData.subjects[entry.date][entry.time];
 
-    SUBJECT_OPTIONS.forEach(option => {
+    subjectOptions.forEach(option => {
       const label = document.createElement("label");
       label.className = "subject-option";
 
@@ -1390,7 +1867,11 @@ runWhenReady(() => {
       input.addEventListener("change", handleSubjectChange);
 
       const text = document.createElement("span");
-      text.textContent = option.label;
+      if (typeof option.price === "number") {
+        text.textContent = `${option.label} (${formatCurrency(option.price, "AUD")})`;
+      } else {
+        text.textContent = option.label;
+      }
 
       label.appendChild(input);
       label.appendChild(text);
@@ -1418,6 +1899,50 @@ runWhenReady(() => {
   checkoutButton.addEventListener("click", () => {
     if (checkoutButton.disabled) return;
     saveState();
+
+    const sessions = timeline.map(entry => {
+      const subjectId = bookingData.subjects[entry.date]?.[entry.time] || "";
+      const subjectOption = subjectService.getOptionById(subjectId);
+      return {
+        date: entry.date,
+        time: entry.time,
+        subjectId,
+        subject: subjectOption?.label || subjectId,
+        price: subjectOption?.price ?? null,
+        priceId: subjectOption?.priceId || "",
+      };
+    });
+
+    const validSessions = sessions.filter(session => session.subjectId && session.priceId);
+    if (!validSessions.length) {
+      if (helper) {
+        helper.textContent = "Select at least one subject with a valid price.";
+      }
+      return;
+    }
+
+    const totalAmount = validSessions.reduce((acc, session) => {
+      return acc + (typeof session.price === "number" ? session.price : 0);
+    }, 0);
+
+    const primarySession = validSessions[0];
+    const pendingBooking = {
+      sessions: validSessions,
+      totalAmount,
+      currency: "AUD",
+      date: primarySession?.date || "",
+      time: primarySession?.time || "",
+      subject: primarySession?.subject || "",
+      price: primarySession?.price || 0,
+      priceId: primarySession?.priceId || "",
+    };
+
+    try {
+      sessionStorage.setItem(PENDING_BOOKING_KEY, JSON.stringify(pendingBooking));
+    } catch (error) {
+      console.warn("Unable to persist pending booking", error);
+    }
+
     window.location.href = "checkout.html";
   });
 });
