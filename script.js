@@ -20,7 +20,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBXK08ePeRzS6_5bXoKKEcSLWbbgdf_Nyo",
+  apiKey: "AIzaSyAv-v8Q_bS3GtcYAAI-3PB4XL1WJv-_shE",
   authDomain: "buantutoring-2d3e9.firebaseapp.com",
   projectId: "buantutoring-2d3e9",
   storageBucket: "buantutoring-2d3e9.firebasestorage.app",
