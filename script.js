@@ -796,7 +796,7 @@ runWhenReady(() => {
     totalEl.textContent = formatCurrency(booking.totalAmount, currency);
   }
 
-  const createSession = async uiMode => {
+  const createSession = async mode => {
     if (statusEl) {
       statusEl.textContent = "Preparing secure checkout...";
     }
@@ -805,7 +805,7 @@ runWhenReady(() => {
 
     const payload = {
       booking,
-      uiMode,
+      mode,
       customerEmail: user?.email || null,
       userId: user?.uid || null,
     };
