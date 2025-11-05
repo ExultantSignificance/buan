@@ -818,55 +818,49 @@ runWhenReady(() => {
     const user = firebaseAuth.currentUser;
 
     const payload = {
-      booking,
+      booking: booking.sessions?.[0]
+        ? {
+            // just pass one session for Stripe (it uses the first as the main item)
+            ...booking.sessions[0],
+            totalAmount: booking.totalAmount,
+            currency: booking.currency,
+            email: user?.email || booking.email || null,
+          }
+        : booking,
       mode,
-      customerEmail: user?.email || null,
-      userId: user?.uid || null,
     };
-
-    const response = await fetch(CREATE_SESSION_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const message = data?.error || "Unable to create a checkout session.";
-      throw new Error(message);
-    }
-
-    return data;
-  };
-
-  let embeddedSessionPromise = null;
-
-  const mountEmbeddedCheckout = async () => {
-    if (!checkoutContainer) return;
-    if (!embeddedSessionPromise) {
-      embeddedSessionPromise = createSession("embedded");
-    }
-
+  
     try {
-      const { client_secret: clientSecret } = await embeddedSessionPromise;
-      if (!clientSecret) {
+      const response = await fetch(CREATE_SESSION_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+  
+      const data = await response.json().catch(() => ({}));
+  
+      if (!response.ok) {
+        const message = data?.error || "Unable to create a checkout session.";
+        throw new Error(message);
+      }
+  
+      if (mode === "embedded" && !data.client_secret) {
         throw new Error("Stripe did not return a client secret.");
       }
-      const stripe = await getStripeClient();
-      if (!stripe) {
-        throw new Error("Stripe.js failed to load.");
+  
+      if (mode !== "embedded" && !data.id && !data.url) {
+        throw new Error("Stripe did not return a session ID or URL.");
       }
-      stripe.initEmbeddedCheckout({ clientSecret }).mount(checkoutContainer);
+  
+      return data;
+    } catch (err) {
+      console.error("❌ createSession failed:", err);
       if (statusEl) {
-        statusEl.textContent = "";
+        statusEl.textContent = err.message || "Unable to connect to Stripe checkout.";
       }
-    } catch (error) {
-      console.error("Unable to initialise embedded checkout", error);
-      if (statusEl) {
-        statusEl.textContent = error.message || "Embedded checkout is unavailable. Use the secure redirect instead.";
-      }
+      throw err;
     }
   };
 
