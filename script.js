@@ -112,6 +112,20 @@ const STRIPE_PUBLISHABLE_KEY = "pk_live_51SJDOtF9Dbt33lFIbAqcbH9jfcTMyssD1VXIcIb
 const FUNCTIONS_BASE_URL = "https://us-central1-buantutoring-2d3e9.cloudfunctions.net";
 const CREATE_SESSION_ENDPOINT = `${FUNCTIONS_BASE_URL}/createCheckoutSession`;
 
+let stripeClientPromise = null;
+const getStripeClient = async () => {
+  if (!stripeClientPromise) {
+    if (typeof window !== "undefined" && typeof window.Stripe === "function") {
+      stripeClientPromise = Promise.resolve(window.Stripe(STRIPE_PUBLISHABLE_KEY));
+    } else {
+      stripeClientPromise = import("https://js.stripe.com/v3/").then(({ loadStripe }) =>
+        loadStripe(STRIPE_PUBLISHABLE_KEY)
+      );
+    }
+  }
+  return stripeClientPromise;
+};
+
 const DEFAULT_SUBJECT_OPTIONS = [
   {
     value: "chemistry",
@@ -840,8 +854,7 @@ runWhenReady(() => {
       if (!clientSecret) {
         throw new Error("Stripe did not return a client secret.");
       }
-      const { loadStripe } = await import("https://js.stripe.com/v3/");
-      const stripe = await loadStripe(STRIPE_PUBLISHABLE_KEY);
+      const stripe = await getStripeClient();
       if (!stripe) {
         throw new Error("Stripe.js failed to load.");
       }
@@ -867,10 +880,21 @@ runWhenReady(() => {
       }
       try {
         const data = await createSession("hosted");
-        if (data?.url) {
+        const stripe = await getStripeClient();
+        if (!stripe) {
+          throw new Error("Stripe.js failed to load.");
+        }
+
+        if (data?.id) {
+          const { error } = await stripe.redirectToCheckout({ sessionId: data.id });
+          if (error) {
+            throw error;
+          }
+        } else if (data?.url) {
           window.location.href = data.url;
         } else if (statusEl) {
           statusEl.textContent = "Stripe did not return a redirect URL.";
+          redirectButton.disabled = false;
         }
       } catch (error) {
         console.error("Unable to start redirect checkout", error);
