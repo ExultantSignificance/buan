@@ -864,6 +864,37 @@ runWhenReady(() => {
     }
   };
 
+  // ---------- EMBEDDED CHECKOUT ----------
+  const mountEmbeddedCheckout = async () => {
+    try {
+      if (statusEl) {
+        statusEl.textContent = "Loading embedded checkout...";
+      }
+  
+      const data = await createSession("embedded");
+  
+      if (!data.client_secret) {
+        throw new Error("Stripe did not return a client secret.");
+      }
+  
+      const stripe = Stripe(STRIPE_PUBLISHABLE_KEY);
+      const checkout = await stripe.initEmbeddedCheckout({
+        clientSecret: data.client_secret,
+      });
+  
+      checkout.mount("#checkout");
+  
+      if (statusEl) statusEl.textContent = "";
+    } catch (err) {
+      console.error("❌ Unable to initialise embedded checkout:", err);
+      if (statusEl) {
+        statusEl.textContent =
+          "Unable to load embedded checkout. Please try the secure Stripe page instead.";
+      }
+    }
+  };
+
+
   mountEmbeddedCheckout();
 
   if (redirectButton) {
