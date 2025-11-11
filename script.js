@@ -664,25 +664,38 @@ runWhenReady(() => {
     headerAccount.appendChild(headerSignOutButton);
   }
 
+  let signOutButton = nav.querySelector("[data-auth-signout]");
+  if (!signOutButton) {
+    signOutButton = document.createElement("button");
+    signOutButton.type = "button";
+    signOutButton.textContent = "Sign Out";
+    signOutButton.dataset.authSignout = "";
+    nav.appendChild(signOutButton);
+  }
+  const menuActionClass = "menu-action";
+  const addMenuActionClass = element => {
+    if (element) {
+      element.classList.add(menuActionClass);
+    }
+  };
+
+  nav.querySelectorAll("a, button").forEach(addMenuActionClass);
+
+  signOutButton.classList.add("auth-signout");
+  addMenuActionClass(signOutButton);
+  signOutButton.hidden = true;
+  signOutButton.removeAttribute("style");
+  nav.appendChild(signOutButton);
+
   let status = nav.querySelector("[data-auth-status-indicator]");
   if (!status) {
     status = document.createElement("span");
     status.dataset.authStatusIndicator = "";
     status.className = "auth-status";
     status.setAttribute("aria-live", "polite");
-    nav.appendChild(status);
   }
-
-  let signOutButton = nav.querySelector("[data-auth-signout]");
-  if (!signOutButton) {
-    signOutButton = document.createElement("button");
-    signOutButton.type = "button";
-    signOutButton.textContent = "Sign Out";
-    signOutButton.className = "auth-signout";
-    signOutButton.dataset.authSignout = "";
-    signOutButton.style.display = "none";
-    nav.appendChild(signOutButton);
-  }
+  status.hidden = true;
+  nav.appendChild(status);
 
   const handleSignOut = async () => {
     clearBookingState();
@@ -707,7 +720,7 @@ runWhenReady(() => {
       status.textContent = user
         ? `Signed in as ${user.name || user.email || "student"}.`
         : "You're browsing as a guest.";
-      status.style.display = "block";
+      status.hidden = !status.textContent;
     }
 
     if (signInLink) {
@@ -719,7 +732,9 @@ runWhenReady(() => {
     }
 
     if (signOutButton) {
-      signOutButton.style.display = user ? "block" : "none";
+      const isSignedIn = Boolean(user);
+      signOutButton.hidden = !isSignedIn;
+      signOutButton.disabled = !isSignedIn;
     }
 
     if (headerAccount) {
