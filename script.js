@@ -841,16 +841,7 @@ runWhenReady(() => {
       bookingPayload.email = email;
     }
 
-    const payload = {
-      booking: booking.sessions?.[0]
-        ? {
-            // just pass one session for Stripe (it uses the first as the main item)
-            ...booking.sessions[0],
-            totalAmount: booking.totalAmount,
-            currency: booking.currency,
-            email: user?.email || booking.email || null,
-          }
-        : booking,
+      booking: bookingPayload,
       ui_mode: mode,
     };
 
