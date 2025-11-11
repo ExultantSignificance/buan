@@ -33,6 +33,11 @@ const app = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(app);
 const firestore = getFirestore(app);
 
+const ADMIN_FIREBASE_UID =
+  typeof window !== "undefined" && window.BUAN_ADMIN_UID
+    ? String(window.BUAN_ADMIN_UID)
+    : "";
+
 // Buttons (make sure these exist in your HTML)
 const signupBtn = document.getElementById("signup");
 const loginBtn = document.getElementById("login");
@@ -702,6 +707,16 @@ runWhenReady(() => {
   const signInLink = nav.querySelector('a[href="signin.html"]');
   const signUpLink = nav.querySelector('a[href="signup.html"]');
 
+  let adminLink = nav.querySelector("[data-auth-admin-link]");
+  if (!adminLink) {
+    adminLink = document.createElement("a");
+    adminLink.href = "admin.html";
+    adminLink.dataset.authAdminLink = "";
+    adminLink.textContent = "Admin Dashboard";
+    adminLink.hidden = true;
+    nav.appendChild(adminLink);
+  }
+
   authClient.subscribe(({ user }) => {
     if (status) {
       status.textContent = user
@@ -720,6 +735,11 @@ runWhenReady(() => {
 
     if (signOutButton) {
       signOutButton.style.display = user ? "block" : "none";
+    }
+
+    if (adminLink) {
+      const isAdmin = Boolean(user && user.uid && user.uid === ADMIN_FIREBASE_UID);
+      adminLink.hidden = !isAdmin;
     }
 
     if (headerAccount) {
