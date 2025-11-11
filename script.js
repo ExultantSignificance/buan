@@ -841,6 +841,7 @@ runWhenReady(() => {
       bookingPayload.email = email;
     }
 
+    const payload = {
       booking: bookingPayload,
       ui_mode: mode,
     };
