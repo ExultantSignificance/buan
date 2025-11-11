@@ -827,7 +827,7 @@ runWhenReady(() => {
             email: user?.email || booking.email || null,
           }
         : booking,
-      mode,
+      ui_mode: mode,
     };
   
     try {
