@@ -843,7 +843,7 @@ runWhenReady(() => {
 
     const payload = {
       booking: bookingPayload,
-      ui_mode: mode,
+      mode,
     };
 
     if (mode) {
