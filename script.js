@@ -817,6 +817,30 @@ runWhenReady(() => {
 
     const user = firebaseAuth.currentUser;
 
+    const email = user?.email || booking.email || null;
+    const sessionsPayload = Array.isArray(booking.sessions) ? booking.sessions : [];
+    const bookingPayload = {
+      ...booking,
+      sessions: sessionsPayload,
+      currency,
+    };
+
+    if (typeof booking.totalAmount === "number") {
+      bookingPayload.totalAmount = booking.totalAmount;
+    } else if (typeof booking.total === "number") {
+      bookingPayload.totalAmount = booking.total;
+    }
+
+    if (typeof booking.total === "number") {
+      bookingPayload.total = booking.total;
+    } else if (typeof booking.totalAmount === "number") {
+      bookingPayload.total = booking.totalAmount;
+    }
+
+    if (email) {
+      bookingPayload.email = email;
+    }
+
     const payload = {
       booking: booking.sessions?.[0]
         ? {
@@ -829,6 +853,18 @@ runWhenReady(() => {
         : booking,
       ui_mode: mode,
     };
+
+    if (mode) {
+      payload.uiMode = mode;
+    }
+
+    if (email) {
+      payload.customerEmail = email;
+    }
+
+    if (user?.uid) {
+      payload.userId = user.uid;
+    }
   
     try {
       const response = await fetch(CREATE_SESSION_ENDPOINT, {
