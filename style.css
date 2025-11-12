@@ -284,6 +284,13 @@ body.no-background::after {
   box-shadow: -12px 0 32px rgba(0, 0, 0, 0.2);
 }
 
+.off-screen-menu [hidden] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .off-screen-menu.active {
   right: 0;
   opacity: 1;
