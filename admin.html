@@ -31,6 +31,18 @@
         <p class="admin-intro">Monitor and update confirmed tutoring sessions.</p>
       </header>
 
+      <section class="admin-availability" data-admin-availability>
+        <div class="admin-availability__header">
+          <h3 class="admin-availability__title">Manage availability.</h3>
+          <p class="admin-availability__intro">Select a date to adjust the time slots students can book.</p>
+        </div>
+        <div class="admin-availability__calendar">
+          <div class="calendar-weekdays" data-admin-calendar-weekdays></div>
+          <div class="calendar-grid" data-admin-calendar-grid></div>
+        </div>
+        <p class="admin-availability__helper" data-admin-availability-helper>Select a date to edit availability.</p>
+      </section>
+
       <p class="admin-loading" data-admin-loading>Loading bookings…</p>
       <p class="admin-error" data-admin-error hidden></p>
       <p class="admin-empty" data-admin-empty hidden>No bookings yet. Check back after your first payment.</p>
@@ -56,6 +68,21 @@
   <footer class="normal-footer">
     <p>© 2025 Buan Tutoring. All rights reserved.</p>
   </footer>
+
+  <div class="admin-modal-backdrop" data-admin-modal-backdrop hidden></div>
+  <div class="admin-modal" data-admin-modal hidden aria-hidden="true">
+    <div class="admin-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle">
+      <header class="admin-modal__header">
+        <h2 class="admin-modal__title" id="adminModalTitle">Edit availability</h2>
+        <button type="button" class="admin-modal__close" data-admin-modal-close aria-label="Close availability editor">&times;</button>
+      </header>
+      <p class="admin-modal__date" data-admin-modal-date></p>
+      <div class="admin-modal__times" data-admin-modal-times></div>
+      <footer class="admin-modal__actions">
+        <button type="button" class="admin-modal__confirm" data-admin-modal-confirm>Confirm</button>
+      </footer>
+    </div>
+  </div>
 
   <script>
     window.BUAN_ADMIN_UID = window.BUAN_ADMIN_UID || "g3RWfVUte6bvIcXXim7rvNhv4hL2";
