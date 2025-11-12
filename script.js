@@ -1466,6 +1466,8 @@ runWhenReady(() => {
 
     const start = new Date();
     start.setHours(0, 0, 0, 0);
+    const getMondayFirstOffset = date => (date.getDay() + 6) % 7;
+    const startOffset = getMondayFirstOffset(start);
 
     for (let i = 0; i < 28; i++) {
       const date = new Date(start);
@@ -1476,6 +1478,9 @@ runWhenReady(() => {
       dayButton.className = "calendar-day";
       dayButton.dataset.date = iso;
       dayButton.textContent = date.getDate();
+      if (i === 0 && startOffset > 0) {
+        dayButton.style.gridColumnStart = String(startOffset + 1);
+      }
       dayButton.addEventListener("click", () => {
         openModal(iso);
       });
