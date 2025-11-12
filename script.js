@@ -1466,6 +1466,8 @@ runWhenReady(() => {
 
     const start = new Date();
     start.setHours(0, 0, 0, 0);
+    const getMondayFirstOffset = date => (date.getDay() + 6) % 7;
+    const startOffset = getMondayFirstOffset(start);
 
     for (let i = 0; i < 28; i++) {
       const date = new Date(start);
@@ -1476,6 +1478,9 @@ runWhenReady(() => {
       dayButton.className = "calendar-day";
       dayButton.dataset.date = iso;
       dayButton.textContent = date.getDate();
+      if (i === 0 && startOffset > 0) {
+        dayButton.style.gridColumnStart = String(startOffset + 1);
+      }
       dayButton.addEventListener("click", () => {
         openModal(iso);
       });
@@ -1807,6 +1812,8 @@ runWhenReady(() => {
 
   const startDate = new Date();
   startDate.setHours(0, 0, 0, 0);
+  const getMondayFirstOffset = date => (date.getDay() + 6) % 7;
+  const startOffset = getMondayFirstOffset(startDate);
   const totalDays = 28; // four weeks
   const selectedDates = new Set();
   const weekSelections = new Map();
@@ -1947,6 +1954,10 @@ runWhenReady(() => {
     dayEl.dataset.week = weekKey;
     dayLookup.set(iso, dayEl);
 
+    if (i === 0 && startOffset > 0) {
+      dayEl.style.gridColumnStart = String(startOffset + 1);
+    }
+
     if (validStoredSelections.has(iso)) {
       selectedDates.add(iso);
       const currentCount = weekSelections.get(weekKey) || 0;
@@ -2046,6 +2057,8 @@ runWhenReady(() => {
   grid.innerHTML = "";
   const startDate = new Date();
   startDate.setHours(0, 0, 0, 0);
+  const getMondayFirstOffset = date => (date.getDay() + 6) % 7;
+  const startOffset = getMondayFirstOffset(startDate);
   const totalDays = 28;
   const accessibleFormatter = new Intl.DateTimeFormat(undefined, {
     weekday: "long",
@@ -2063,6 +2076,10 @@ runWhenReady(() => {
     const label = accessibleFormatter.format(date);
     dayCell.setAttribute("aria-label", label);
     dayCell.title = label;
+
+    if (index === 0 && startOffset > 0) {
+      dayCell.style.gridColumnStart = String(startOffset + 1);
+    }
 
     grid.appendChild(dayCell);
   }
