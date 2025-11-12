@@ -1471,6 +1471,49 @@ runWhenReady(() => {
 });
 
 runWhenReady(() => {
+  const adminCalendar = document.querySelector("[data-admin-calendar]");
+  if (!adminCalendar) return;
+
+  const weekdaysContainer = adminCalendar.querySelector("[data-admin-calendar-weekdays]");
+  const grid = adminCalendar.querySelector("[data-admin-calendar-grid]");
+
+  if (!weekdaysContainer || !grid) return;
+
+  const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  weekdaysContainer.innerHTML = "";
+  weekdayLabels.forEach(label => {
+    const el = document.createElement("div");
+    el.className = "calendar-weekday";
+    el.textContent = label;
+    weekdaysContainer.appendChild(el);
+  });
+
+  grid.innerHTML = "";
+  const startDate = new Date();
+  startDate.setHours(0, 0, 0, 0);
+  const totalDays = 28;
+  const accessibleFormatter = new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+  for (let index = 0; index < totalDays; index += 1) {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
+
+    const dayCell = document.createElement("div");
+    dayCell.className = "calendar-day";
+    dayCell.textContent = String(date.getDate());
+    const label = accessibleFormatter.format(date);
+    dayCell.setAttribute("aria-label", label);
+    dayCell.title = label;
+
+    grid.appendChild(dayCell);
+  }
+});
+
+runWhenReady(() => {
   const selectTimePage = document.querySelector("[data-select-time-page]");
   if (!selectTimePage) return;
 
