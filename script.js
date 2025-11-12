@@ -17,6 +17,9 @@ import {
   onSnapshot,
   doc,
   updateDoc,
+  getDoc,
+  setDoc,
+  deleteField,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -343,6 +346,31 @@ const runWhenReady = callback => {
   }
 };
 
+const TIME_SLOT_VALUES = (() => {
+  const values = [];
+  for (let hour = 8; hour <= 18; hour++) {
+    values.push(`${String(hour).padStart(2, "0")}:00`);
+  }
+  return values;
+})();
+
+const TIME_SLOT_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+const getStandardTimeSlots = () =>
+  TIME_SLOT_VALUES.map(value => ({
+    value,
+    display: TIME_SLOT_FORMATTER.format(new Date(`1970-01-01T${value}:00`)),
+  }));
+
+const AVAILABILITY_STORAGE_KEY = "buan.availabilityState";
+
+const isValidDateKey = value => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const isValidTimeKey = value => typeof value === "string" && /^\d{2}:\d{2}$/.test(value);
+
 const buildRelativeLocation = () => {
   const path = window.location.pathname.replace(/^\//, "");
   const search = window.location.search || "";
@@ -404,6 +432,208 @@ const requireAuthForBooking = () => {
   redirectToSignIn();
   return false;
 };
+
+const normaliseAvailabilityDay = source => {
+  const result = {};
+  if (!source || typeof source !== "object") return result;
+  Object.keys(source).forEach(timeKey => {
+    if (!isValidTimeKey(timeKey)) return;
+    result[timeKey] = source[timeKey] === false ? false : true;
+  });
+  return result;
+};
+
+const normaliseAvailabilityData = data => {
+  const slots = data && typeof data === "object" ? data.slots || data : {};
+  const result = {};
+  Object.keys(slots || {}).forEach(dateKey => {
+    if (!isValidDateKey(dateKey)) return;
+    const cleaned = normaliseAvailabilityDay(slots[dateKey]);
+    if (Object.keys(cleaned).length) {
+      result[dateKey] = cleaned;
+    }
+  });
+  return result;
+};
+
+const readAvailabilityCache = () => {
+  try {
+    const raw = localStorage.getItem(AVAILABILITY_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return normaliseAvailabilityData(parsed);
+  } catch (error) {
+    console.warn("Unable to read availability cache", error);
+    return {};
+  }
+};
+
+const persistAvailabilityCache = data => {
+  try {
+    localStorage.setItem(AVAILABILITY_STORAGE_KEY, JSON.stringify({ slots: data }));
+  } catch (error) {
+    console.warn("Unable to persist availability cache", error);
+  }
+};
+
+const availabilityService = (() => {
+  const listeners = new Set();
+  const docRef = doc(firestore, "availability", "global");
+  let cache = readAvailabilityCache();
+  let unsubscribe = null;
+  let loadPromise = null;
+
+  const cloneCache = () => {
+    const snapshot = {};
+    Object.keys(cache).forEach(dateKey => {
+      snapshot[dateKey] = { ...cache[dateKey] };
+    });
+    return snapshot;
+  };
+
+  const notify = () => {
+    persistAvailabilityCache(cache);
+    const snapshot = cloneCache();
+    listeners.forEach(listener => {
+      try {
+        listener(snapshot);
+      } catch (error) {
+        console.warn("Availability listener error", error);
+      }
+    });
+  };
+
+  const applySnapshot = snapshot => {
+    if (!snapshot) {
+      cache = {};
+      notify();
+      return;
+    }
+    try {
+      const data = typeof snapshot.data === "function" ? snapshot.data() : snapshot;
+      cache = normaliseAvailabilityData(data);
+      notify();
+    } catch (error) {
+      console.warn("Unable to process availability data", error);
+    }
+  };
+
+  const ensureSubscription = () => {
+    if (unsubscribe) return;
+    try {
+      unsubscribe = onSnapshot(
+        docRef,
+        snapshot => applySnapshot(snapshot),
+        error => {
+          console.warn("Unable to subscribe to availability updates", error);
+        }
+      );
+    } catch (error) {
+      console.warn("Availability subscription error", error);
+    }
+  };
+
+  const ensureLoaded = async () => {
+    if (loadPromise) return loadPromise;
+    ensureSubscription();
+    loadPromise = getDoc(docRef)
+      .then(snapshot => {
+        if (snapshot) {
+          applySnapshot(snapshot);
+        } else {
+          applySnapshot(null);
+        }
+        return cloneCache();
+      })
+      .catch(error => {
+        console.warn("Unable to load availability", error);
+        return cloneCache();
+      });
+    return loadPromise;
+  };
+
+  const subscribe = listener => {
+    if (typeof listener !== "function") return () => {};
+    listeners.add(listener);
+    listener(cloneCache());
+    ensureSubscription();
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0 && unsubscribe) {
+        unsubscribe();
+        unsubscribe = null;
+      }
+    };
+  };
+
+  const setDayAvailability = async (dateKey, dayMap) => {
+    if (!isValidDateKey(dateKey)) {
+      throw new Error("Invalid date provided");
+    }
+
+    const normalised = {};
+    TIME_SLOT_VALUES.forEach(timeKey => {
+      const value = dayMap && Object.prototype.hasOwnProperty.call(dayMap, timeKey)
+        ? dayMap[timeKey]
+        : true;
+      normalised[timeKey] = value === false ? false : true;
+    });
+
+    const allAvailable = TIME_SLOT_VALUES.every(timeKey => normalised[timeKey] !== false);
+    const nextCache = { ...cache };
+    if (allAvailable) {
+      delete nextCache[dateKey];
+    } else {
+      nextCache[dateKey] = normalised;
+    }
+    cache = nextCache;
+    notify();
+
+    try {
+      if (allAvailable) {
+        await setDoc(
+          docRef,
+          {
+            slots: {
+              [dateKey]: deleteField(),
+            },
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } else {
+        await setDoc(
+          docRef,
+          {
+            slots: {
+              [dateKey]: normalised,
+            },
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      }
+    } catch (error) {
+      console.error("Unable to save availability", error);
+      throw error;
+    }
+  };
+
+  const getAvailabilityForDate = dateKey => {
+    if (!isValidDateKey(dateKey)) return null;
+    const entry = cache[dateKey];
+    if (!entry) return null;
+    return { ...entry };
+  };
+
+  return {
+    ensureLoaded,
+    subscribe,
+    setDayAvailability,
+    getAvailabilityForDate,
+    getSnapshot: () => cloneCache(),
+  };
+})();
 
 const AUTH_STORAGE_KEY = "buan.authSession";
 
@@ -1001,6 +1231,30 @@ runWhenReady(() => {
   const emptyState = adminPage.querySelector("[data-admin-empty]");
   const loadingState = adminPage.querySelector("[data-admin-loading]");
   const errorEl = adminPage.querySelector("[data-admin-error]");
+  const availabilitySection = adminPage.querySelector("[data-admin-availability]");
+  const calendarWeekdays = availabilitySection?.querySelector("[data-admin-calendar-weekdays]");
+  const calendarGrid = availabilitySection?.querySelector("[data-admin-calendar-grid]");
+  const availabilityHelper = availabilitySection?.querySelector("[data-admin-availability-helper]");
+  const modal = document.querySelector("[data-admin-modal]");
+  const modalBackdrop = document.querySelector("[data-admin-modal-backdrop]");
+  const modalTimes = document.querySelector("[data-admin-modal-times]");
+  const modalDateLabel = document.querySelector("[data-admin-modal-date]");
+  const modalClose = document.querySelector("[data-admin-modal-close]");
+  const modalConfirm = document.querySelector("[data-admin-modal-confirm]");
+  const confirmDefaultText = modalConfirm?.textContent || "Confirm";
+  const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const dayButtons = new Map();
+  let activeDayButton = null;
+  let modalDateKey = null;
+  let availabilitySnapshot = availabilityService.getSnapshot();
+  let availabilityUnsubscribe = null;
+  let escListener = null;
+  const toIsoDate = date => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
   let bookingsUnsubscribe = null;
 
   const renderEmpty = isEmpty => {
@@ -1017,6 +1271,234 @@ runWhenReady(() => {
       errorEl.hidden = !message;
     }
   };
+
+  const describeAvailability = dateKey => {
+    const day = availabilitySnapshot?.[dateKey];
+    if (!day) {
+      return {
+        unavailable: 0,
+        available: TIME_SLOT_VALUES.length,
+        message: "All slots available.",
+      };
+    }
+    let unavailable = 0;
+    let available = 0;
+    TIME_SLOT_VALUES.forEach(timeKey => {
+      if (day[timeKey] === false) {
+        unavailable += 1;
+      } else {
+        available += 1;
+      }
+    });
+    let message = "All slots available.";
+    if (unavailable === TIME_SLOT_VALUES.length) {
+      message = "No slots available.";
+    } else if (unavailable > 0) {
+      message = `${available} available · ${unavailable} unavailable.`;
+    }
+    return { unavailable, available, message };
+  };
+
+  const updateHelperMessage = dateKey => {
+    if (!availabilityHelper) return;
+    if (dateKey) {
+      const summary = describeAvailability(dateKey);
+      availabilityHelper.textContent = summary.message;
+    } else {
+      availabilityHelper.textContent = "Select a date to edit availability.";
+    }
+  };
+
+  const updateDayStates = () => {
+    dayButtons.forEach((button, dateKey) => {
+      const summary = describeAvailability(dateKey);
+      const isPartial = summary.unavailable > 0 && summary.unavailable < TIME_SLOT_VALUES.length;
+      const isClosed = summary.unavailable === TIME_SLOT_VALUES.length;
+      button.classList.toggle("calendar-day--has-unavailable", isPartial);
+      button.classList.toggle("calendar-day--fully-unavailable", isClosed);
+      button.setAttribute(
+        "aria-label",
+        `${formatDisplayDate(dateKey)} – ${summary.message}`
+      );
+      button.title = summary.message;
+    });
+  };
+
+  const closeModal = () => {
+    if (modal) {
+      modal.hidden = true;
+      modal.setAttribute("aria-hidden", "true");
+    }
+    if (modalBackdrop) {
+      modalBackdrop.hidden = true;
+    }
+    modalDateKey = null;
+    if (activeDayButton) {
+      activeDayButton.classList.remove("selected");
+      activeDayButton = null;
+    }
+    updateHelperMessage(null);
+    if (escListener) {
+      document.removeEventListener("keydown", escListener);
+      escListener = null;
+    }
+    if (modalConfirm) {
+      modalConfirm.disabled = false;
+      modalConfirm.textContent = confirmDefaultText;
+    }
+  };
+
+  const renderModalTimes = dateKey => {
+    if (!modalTimes) return;
+    const slots = getStandardTimeSlots();
+    const day = availabilitySnapshot?.[dateKey] || {};
+    modalTimes.innerHTML = "";
+
+    slots.forEach(({ value, display }) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "admin-modal__toggle";
+      const id = `admin-availability-${dateKey}-${value}`;
+      const label = document.createElement("label");
+      label.setAttribute("for", id);
+      label.textContent = display;
+
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.id = id;
+      input.dataset.time = value;
+      const available = day[value] === false ? false : true;
+      input.checked = available;
+
+      const syncAppearance = () => {
+        wrapper.classList.toggle("admin-modal__toggle--unavailable", !input.checked);
+      };
+
+      input.addEventListener("change", syncAppearance);
+      syncAppearance();
+
+      wrapper.appendChild(label);
+      wrapper.appendChild(input);
+      modalTimes.appendChild(wrapper);
+    });
+  };
+
+  const openModal = dateKey => {
+    if (!modal || !modalBackdrop) return;
+    modalDateKey = dateKey;
+    renderModalTimes(dateKey);
+    updateHelperMessage(dateKey);
+    if (modalDateLabel) {
+      modalDateLabel.textContent = formatDisplayDate(dateKey);
+    }
+    const button = dayButtons.get(dateKey) || null;
+    if (button) {
+      if (activeDayButton && activeDayButton !== button) {
+        activeDayButton.classList.remove("selected");
+      }
+      button.classList.add("selected");
+      activeDayButton = button;
+    }
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    modalBackdrop.hidden = false;
+    if (modalConfirm) {
+      modalConfirm.disabled = false;
+      modalConfirm.textContent = confirmDefaultText;
+      modalConfirm.focus({ preventScroll: true });
+    }
+    if (!escListener) {
+      escListener = event => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeModal();
+        }
+      };
+      document.addEventListener("keydown", escListener);
+    }
+  };
+
+  const handleModalConfirm = async () => {
+    if (!modalDateKey || !modalTimes || !modalConfirm) return;
+    const inputs = modalTimes.querySelectorAll('input[type="checkbox"][data-time]');
+    const payload = {};
+    inputs.forEach(input => {
+      const timeValue = input.dataset.time;
+      if (timeValue) {
+        payload[timeValue] = input.checked;
+      }
+    });
+    modalConfirm.disabled = true;
+    modalConfirm.textContent = "Saving...";
+    try {
+      await availabilityService.setDayAvailability(modalDateKey, payload);
+      setError("");
+      closeModal();
+    } catch (error) {
+      console.error("Unable to update availability", error);
+      setError("Unable to save availability. Try again later.");
+      modalConfirm.disabled = false;
+      modalConfirm.textContent = confirmDefaultText;
+    }
+  };
+
+  if (modalClose) {
+    modalClose.addEventListener("click", closeModal);
+  }
+  if (modalBackdrop) {
+    modalBackdrop.addEventListener("click", closeModal);
+  }
+  if (modalConfirm) {
+    modalConfirm.addEventListener("click", handleModalConfirm);
+  }
+
+  const buildAvailabilityCalendar = () => {
+    if (!calendarWeekdays || !calendarGrid) return;
+    calendarWeekdays.innerHTML = "";
+    weekdayLabels.forEach(label => {
+      const el = document.createElement("div");
+      el.className = "calendar-weekday";
+      el.textContent = label;
+      calendarWeekdays.appendChild(el);
+    });
+
+    calendarGrid.innerHTML = "";
+    dayButtons.clear();
+
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < 28; i++) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + i);
+      const iso = toIsoDate(date);
+      const dayButton = document.createElement("button");
+      dayButton.type = "button";
+      dayButton.className = "calendar-day";
+      dayButton.dataset.date = iso;
+      dayButton.textContent = date.getDate();
+      dayButton.addEventListener("click", () => {
+        openModal(iso);
+      });
+      calendarGrid.appendChild(dayButton);
+      dayButtons.set(iso, dayButton);
+    }
+
+    updateDayStates();
+    updateHelperMessage(null);
+  };
+
+  if (availabilitySection && calendarWeekdays && calendarGrid) {
+    buildAvailabilityCalendar();
+    availabilityService.ensureLoaded().catch(() => {});
+    availabilityUnsubscribe = availabilityService.subscribe(snapshot => {
+      availabilitySnapshot = snapshot;
+      updateDayStates();
+      if (modalDateKey) {
+        renderModalTimes(modalDateKey);
+        updateHelperMessage(modalDateKey);
+      }
+    });
+  }
 
   const renderRows = bookings => {
     if (!tableBody) return;
@@ -1117,6 +1599,10 @@ runWhenReady(() => {
     if (bookingsUnsubscribe) {
       bookingsUnsubscribe();
       bookingsUnsubscribe = null;
+    }
+    if (typeof availabilityUnsubscribe === "function") {
+      availabilityUnsubscribe();
+      availabilityUnsubscribe = null;
     }
     if (typeof authUnsubscribe === "function") {
       authUnsubscribe();
@@ -1308,6 +1794,9 @@ runWhenReady(() => {
       : {};
   let storedSubjects = pruneSubjects(bookingState.subjects, storedTimes);
   const storedDateList = Array.isArray(bookingState.dates) ? [...bookingState.dates] : [];
+  let availabilitySnapshot = availabilityService.getSnapshot();
+  const dayLookup = new Map();
+  let availabilityUnsubscribe = null;
 
   weekdays.forEach(label => {
     const el = document.createElement("div");
@@ -1338,6 +1827,13 @@ runWhenReady(() => {
     return formatDateKey(d);
   };
 
+  const isDateSelectable = dateKey => {
+    if (!isValidDateKey(dateKey)) return false;
+    const day = availabilitySnapshot?.[dateKey];
+    if (!day) return true;
+    return TIME_SLOT_VALUES.some(timeKey => day[timeKey] !== false);
+  };
+
   const validStoredSelections = new Set();
   const preselectionWeekCounts = new Map();
 
@@ -1366,8 +1862,7 @@ runWhenReady(() => {
   };
 
   const updateWeekRestrictions = () => {
-    const dayElements = grid.querySelectorAll(".calendar-day");
-    dayElements.forEach(dayEl => {
+    dayLookup.forEach(dayEl => {
       const weekKey = dayEl.dataset.week;
       const count = weekSelections.get(weekKey) || 0;
       if (dayEl.classList.contains("selected")) {
@@ -1398,6 +1893,46 @@ runWhenReady(() => {
     }
   };
 
+  const updateDayAvailabilityClasses = () => {
+    dayLookup.forEach((dayEl, dateKey) => {
+      const selectable = isDateSelectable(dateKey);
+      dayEl.classList.toggle("unavailable", !selectable);
+      dayEl.disabled = !selectable;
+      dayEl.setAttribute("aria-disabled", String(!selectable));
+      if (!selectable) {
+        dayEl.classList.remove("selected");
+        dayEl.setAttribute("aria-pressed", "false");
+      }
+    });
+  };
+
+  const removeUnavailableSelections = () => {
+    let removed = false;
+    Array.from(selectedDates).forEach(dateKey => {
+      if (!isDateSelectable(dateKey)) {
+        selectedDates.delete(dateKey);
+        const dayEl = dayLookup.get(dateKey);
+        if (dayEl) {
+          dayEl.classList.remove("selected");
+          dayEl.setAttribute("aria-pressed", "false");
+        }
+        removed = true;
+      }
+    });
+    return removed;
+  };
+
+  const handleAvailabilityUpdate = snapshot => {
+    availabilitySnapshot = snapshot;
+    updateDayAvailabilityClasses();
+    const removed = removeUnavailableSelections();
+    if (removed) {
+      updateWeekRestrictions();
+      persistSelections();
+    }
+    refreshHelper();
+  };
+
   for (let i = 0; i < totalDays; i++) {
     const date = new Date(startDate);
     date.setDate(startDate.getDate() + i);
@@ -1410,6 +1945,7 @@ runWhenReady(() => {
     dayEl.dataset.date = iso;
     const weekKey = getWeekKey(date);
     dayEl.dataset.week = weekKey;
+    dayLookup.set(iso, dayEl);
 
     if (validStoredSelections.has(iso)) {
       selectedDates.add(iso);
@@ -1420,6 +1956,10 @@ runWhenReady(() => {
     }
 
     dayEl.addEventListener("click", () => {
+      if (!isDateSelectable(iso)) {
+        helper.textContent = "No availability for this date.";
+        return;
+      }
       if (dayEl.classList.contains("disabled") && !dayEl.classList.contains("selected")) {
         helper.textContent = "Only two days per week can be selected.";
         return;
@@ -1458,8 +1998,16 @@ runWhenReady(() => {
   }
 
   refreshHelper();
+  updateDayAvailabilityClasses();
+  const removedInitially = removeUnavailableSelections();
   updateWeekRestrictions();
   persistSelections();
+  if (removedInitially) {
+    refreshHelper();
+  }
+
+  availabilityService.ensureLoaded().catch(() => {});
+  availabilityUnsubscribe = availabilityService.subscribe(handleAvailabilityUpdate);
 
   if (selectButton) {
     selectButton.addEventListener("click", () => {
@@ -1468,6 +2016,13 @@ runWhenReady(() => {
       window.location.href = "selecttime.html";
     });
   }
+
+  window.addEventListener("beforeunload", () => {
+    if (typeof availabilityUnsubscribe === "function") {
+      availabilityUnsubscribe();
+      availabilityUnsubscribe = null;
+    }
+  });
 });
 
 runWhenReady(() => {
@@ -1552,6 +2107,9 @@ runWhenReady(() => {
     subjects: {},
   };
 
+  let availabilitySnapshot = availabilityService.getSnapshot();
+  let availabilityUnsubscribe = null;
+
   dates.forEach(dateKey => {
     const source = storedTimes[dateKey];
     if (!Array.isArray(source)) return;
@@ -1563,24 +2121,16 @@ runWhenReady(() => {
 
   bookingData.subjects = pruneSubjects(storedSubjects, bookingData.times);
 
-  const buildTimeBlocks = () => {
-    const hours = [];
-    const formatter = new Intl.DateTimeFormat(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    for (let hour = 8; hour <= 18; hour++) {
-      const value = `${String(hour).padStart(2, "0")}:00`;
-      const display = formatter.format(new Date(`1970-01-01T${value}:00`));
-      hours.push({ value, display });
-    }
-    return hours;
-  };
-
-  const hours = buildTimeBlocks();
+  const hours = getStandardTimeSlots();
   const cards = [];
 
   const ensureArray = value => (Array.isArray(value) ? value : []);
+
+  const isTimeUnavailable = (dateKey, timeKey) => {
+    const day = availabilitySnapshot?.[dateKey];
+    if (!day) return false;
+    return day[timeKey] === false;
+  };
 
   const syncSubjects = () => {
     const cleaned = pruneSubjects(bookingData.subjects, bookingData.times);
@@ -1625,11 +2175,17 @@ runWhenReady(() => {
           : "Choose one-hour slots for this date.";
       }
       const inputs = card.querySelectorAll('input[type="checkbox"]');
+      const dateKey = card.dataset.date;
+      const selections = new Set(ensureArray(bookingData.times[dateKey]));
+      let removed = false;
+
       if (locked) {
-        const dateKey = card.dataset.date;
-        const selections = new Set(ensureArray(bookingData.times[dateKey]));
-        let removed = false;
         inputs.forEach(input => {
+          const option = input.closest(".time-option");
+          const unavailable = isTimeUnavailable(dateKey, input.value);
+          if (option) {
+            option.classList.toggle("time-option--unavailable", unavailable);
+          }
           if (input.checked) {
             input.checked = false;
             if (selections.delete(input.value)) {
@@ -1638,19 +2194,34 @@ runWhenReady(() => {
           }
           input.disabled = true;
         });
-
-        if (removed) {
-          if (selections.size === 0) {
-            delete bookingData.times[dateKey];
-          } else {
-            bookingData.times[dateKey] = Array.from(selections).sort();
-          }
-          stateModified = true;
-        }
       } else {
         inputs.forEach(input => {
-          input.disabled = false;
+          const option = input.closest(".time-option");
+          const unavailable = isTimeUnavailable(dateKey, input.value);
+          if (option) {
+            option.classList.toggle("time-option--unavailable", unavailable);
+          }
+          if (unavailable) {
+            if (input.checked) {
+              input.checked = false;
+              if (selections.delete(input.value)) {
+                removed = true;
+              }
+            }
+            input.disabled = true;
+          } else {
+            input.disabled = false;
+          }
         });
+      }
+
+      if (removed) {
+        if (selections.size === 0) {
+          delete bookingData.times[dateKey];
+        } else {
+          bookingData.times[dateKey] = Array.from(selections).sort();
+        }
+        stateModified = true;
       }
     });
 
@@ -1696,6 +2267,10 @@ runWhenReady(() => {
     const dateKey = input.dataset.date;
     const value = input.value;
     if (!dateKey || !value) return;
+    if (isTimeUnavailable(dateKey, value)) {
+      input.checked = false;
+      return;
+    }
 
     const selections = new Set(ensureArray(bookingData.times[dateKey]));
     if (input.checked) {
@@ -1768,7 +2343,13 @@ runWhenReady(() => {
       input.value = value;
       input.dataset.date = iso;
       input.id = `${iso}-${value}`;
+      const unavailable = isTimeUnavailable(iso, value);
+      if (unavailable) {
+        selectedTimes.delete(value);
+        option.classList.add("time-option--unavailable");
+      }
       input.checked = selectedTimes.has(value);
+      input.disabled = unavailable;
       input.addEventListener("change", handleTimeChange);
 
       const text = document.createElement("span");
@@ -1783,7 +2364,15 @@ runWhenReady(() => {
     card.appendChild(timesColumn);
     list.appendChild(card);
     cards.push(card);
+
+    if (selectedTimes.size === 0) {
+      delete bookingData.times[iso];
+    } else {
+      bookingData.times[iso] = Array.from(selectedTimes).sort();
+    }
   });
+
+  saveState();
 
   const modifiedByUnlocking = applyUnlocking();
   if (modifiedByUnlocking) {
@@ -1796,6 +2385,23 @@ runWhenReady(() => {
     window.requestAnimationFrame(updateFocusedCard);
   });
   window.addEventListener("resize", updateFocusedCard);
+
+  availabilityService.ensureLoaded().catch(() => {});
+  availabilityUnsubscribe = availabilityService.subscribe(snapshot => {
+    availabilitySnapshot = snapshot;
+    const modified = applyUnlocking();
+    if (modified) {
+      saveState();
+    }
+    refreshHelper();
+  });
+
+  window.addEventListener("beforeunload", () => {
+    if (typeof availabilityUnsubscribe === "function") {
+      availabilityUnsubscribe();
+      availabilityUnsubscribe = null;
+    }
+  });
 });
 
 runWhenReady(async () => {
