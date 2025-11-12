@@ -33,10 +33,7 @@ const app = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(app);
 const firestore = getFirestore(app);
 
-const ADMIN_FIREBASE_UID =
-  typeof window !== "undefined" && window.BUAN_ADMIN_UID
-    ? String(window.BUAN_ADMIN_UID)
-    : "";
+const ADMIN_FIREBASE_UID = "g3RWfVUte6bvIcXXim7rvNhv4hL2";
 
 // Buttons (make sure these exist in your HTML)
 const signupBtn = document.getElementById("signup");
