@@ -482,6 +482,7 @@ const availabilityService = (() => {
   let cache = readAvailabilityCache();
   let unsubscribe = null;
   let loadPromise = null;
+  let lastErrorMessage = null;
 
   const cloneCache = () => {
     const snapshot = {};
@@ -491,30 +492,55 @@ const availabilityService = (() => {
     return snapshot;
   };
 
+  const buildState = () => {
+    const data = cloneCache();
+    const error = lastErrorMessage ? { message: lastErrorMessage } : null;
+    return { data, error };
+  };
+
   const notify = () => {
-    persistAvailabilityCache(cache);
-    const snapshot = cloneCache();
+    if (!lastErrorMessage) {
+      persistAvailabilityCache(cache);
+    }
+    const state = buildState();
     listeners.forEach(listener => {
       try {
-        listener(snapshot);
+        listener(state);
       } catch (error) {
         console.warn("Availability listener error", error);
       }
     });
   };
 
+  const mapErrorMessage = error => {
+    if (!error) return null;
+    if (typeof error === "string" && error.trim()) return error.trim();
+    if (typeof error.message === "string" && error.message.trim()) {
+      return error.message.trim();
+    }
+    return "Unable to load availability data. Please try again later.";
+  };
+
+  const setErrorState = error => {
+    lastErrorMessage = mapErrorMessage(error);
+    notify();
+  };
+
   const applySnapshot = snapshot => {
     if (!snapshot) {
       cache = {};
+      lastErrorMessage = null;
       notify();
       return;
     }
     try {
       const data = typeof snapshot.data === "function" ? snapshot.data() : snapshot;
       cache = normaliseAvailabilityData(data);
+      lastErrorMessage = null;
       notify();
     } catch (error) {
       console.warn("Unable to process availability data", error);
+      setErrorState(error);
     }
   };
 
@@ -523,9 +549,16 @@ const availabilityService = (() => {
     try {
       unsubscribe = onSnapshot(
         docRef,
-        snapshot => applySnapshot(snapshot),
+        snapshot => {
+          const hadError = Boolean(lastErrorMessage);
+          applySnapshot(snapshot);
+          if (hadError && !lastErrorMessage) {
+            console.info("Availability connection restored.");
+          }
+        },
         error => {
           console.warn("Unable to subscribe to availability updates", error);
+          setErrorState(error);
         }
       );
     } catch (error) {
@@ -536,26 +569,30 @@ const availabilityService = (() => {
   const ensureLoaded = async () => {
     if (loadPromise) return loadPromise;
     ensureSubscription();
-    loadPromise = getDoc(docRef)
-      .then(snapshot => {
+    loadPromise = (async () => {
+      try {
+        const snapshot = await getDoc(docRef);
         if (snapshot) {
           applySnapshot(snapshot);
         } else {
           applySnapshot(null);
         }
-        return cloneCache();
-      })
-      .catch(error => {
+        return buildState();
+      } catch (error) {
         console.warn("Unable to load availability", error);
-        return cloneCache();
-      });
+        setErrorState(error);
+        throw error;
+      } finally {
+        loadPromise = null;
+      }
+    })();
     return loadPromise;
   };
 
   const subscribe = listener => {
     if (typeof listener !== "function") return () => {};
     listeners.add(listener);
-    listener(cloneCache());
+    listener(buildState());
     ensureSubscription();
     return () => {
       listeners.delete(listener);
@@ -631,7 +668,7 @@ const availabilityService = (() => {
     subscribe,
     setDayAvailability,
     getAvailabilityForDate,
-    getSnapshot: () => cloneCache(),
+    getSnapshot: () => buildState(),
   };
 })();
 
@@ -1246,9 +1283,10 @@ runWhenReady(() => {
   const dayButtons = new Map();
   let activeDayButton = null;
   let modalDateKey = null;
-  let availabilitySnapshot = availabilityService.getSnapshot();
+  let availabilityState = availabilityService.getSnapshot();
   let availabilityUnsubscribe = null;
   let escListener = null;
+  let modalCloseTimeoutId = null;
   const toIsoDate = date => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -1256,6 +1294,21 @@ runWhenReady(() => {
     return `${year}-${month}-${day}`;
   };
   let bookingsUnsubscribe = null;
+
+  const getAvailabilityData = () => {
+    const data = availabilityState?.data;
+    return data && typeof data === "object" ? data : {};
+  };
+
+  const hasAvailabilityError = () => Boolean(availabilityState?.error);
+
+  const getAvailabilityErrorMessage = () => {
+    const message = availabilityState?.error?.message;
+    if (typeof message === "string" && message.trim()) {
+      return message.trim();
+    }
+    return "Real-time availability is currently unavailable. Please try again later.";
+  };
 
   const renderEmpty = isEmpty => {
     if (emptyState) emptyState.hidden = !isEmpty;
@@ -1272,8 +1325,8 @@ runWhenReady(() => {
     }
   };
 
-  const describeAvailability = dateKey => {
-    const day = availabilitySnapshot?.[dateKey];
+  const describeAvailability = (dateKey, availabilityData = getAvailabilityData()) => {
+    const day = availabilityData?.[dateKey];
     if (!day) {
       return {
         unavailable: 0,
@@ -1301,6 +1354,10 @@ runWhenReady(() => {
 
   const updateHelperMessage = dateKey => {
     if (!availabilityHelper) return;
+    if (hasAvailabilityError()) {
+      availabilityHelper.textContent = getAvailabilityErrorMessage();
+      return;
+    }
     if (dateKey) {
       const summary = describeAvailability(dateKey);
       availabilityHelper.textContent = summary.message;
@@ -1310,8 +1367,23 @@ runWhenReady(() => {
   };
 
   const updateDayStates = () => {
+    const hasError = hasAvailabilityError();
+    const availabilityData = getAvailabilityData();
+    const errorMessage = hasError ? getAvailabilityErrorMessage() : "";
     dayButtons.forEach((button, dateKey) => {
-      const summary = describeAvailability(dateKey);
+      if (hasError) {
+        button.classList.remove("calendar-day--has-unavailable");
+        button.classList.remove("calendar-day--fully-unavailable");
+        button.classList.remove("selected");
+        button.disabled = true;
+        button.setAttribute("aria-disabled", "true");
+        button.setAttribute("aria-label", `${formatDisplayDate(dateKey)} – ${errorMessage}`);
+        button.title = errorMessage;
+        return;
+      }
+      button.disabled = false;
+      button.setAttribute("aria-disabled", "false");
+      const summary = describeAvailability(dateKey, availabilityData);
       const isPartial = summary.unavailable > 0 && summary.unavailable < TIME_SLOT_VALUES.length;
       const isClosed = summary.unavailable === TIME_SLOT_VALUES.length;
       button.classList.toggle("calendar-day--has-unavailable", isPartial);
@@ -1324,7 +1396,24 @@ runWhenReady(() => {
     });
   };
 
+  const clearModalCloseTimeout = () => {
+    if (modalCloseTimeoutId !== null) {
+      window.clearTimeout(modalCloseTimeoutId);
+      modalCloseTimeoutId = null;
+    }
+  };
+
+  const showModalDisconnectNotice = message => {
+    if (!modalTimes) return;
+    modalTimes.innerHTML = "";
+    const notice = document.createElement("p");
+    notice.className = "admin-modal__notice";
+    notice.textContent = message;
+    modalTimes.appendChild(notice);
+  };
+
   const closeModal = () => {
+    clearModalCloseTimeout();
     if (modal) {
       modal.hidden = true;
       modal.setAttribute("aria-hidden", "true");
@@ -1350,9 +1439,13 @@ runWhenReady(() => {
 
   const renderModalTimes = dateKey => {
     if (!modalTimes) return;
-    const slots = getStandardTimeSlots();
-    const day = availabilitySnapshot?.[dateKey] || {};
     modalTimes.innerHTML = "";
+    if (hasAvailabilityError()) {
+      return;
+    }
+    const slots = getStandardTimeSlots();
+    const availabilityData = getAvailabilityData();
+    const day = availabilityData[dateKey] || {};
 
     slots.forEach(({ value, display }) => {
       const wrapper = document.createElement("div");
@@ -1382,8 +1475,49 @@ runWhenReady(() => {
     });
   };
 
+  const applyAvailabilityState = () => {
+    const hasError = hasAvailabilityError();
+    if (hasError) {
+      const message = getAvailabilityErrorMessage();
+      setError(message);
+      updateDayStates();
+      if (modal && modal.hidden === false) {
+        showModalDisconnectNotice("Lost connection. Closing editor…");
+        clearModalCloseTimeout();
+        modalCloseTimeoutId = window.setTimeout(() => {
+          closeModal();
+        }, 1400);
+      } else {
+        updateHelperMessage(null);
+      }
+      if (modalConfirm) {
+        modalConfirm.disabled = true;
+        modalConfirm.textContent = confirmDefaultText;
+      }
+      return;
+    }
+
+    setError("");
+    updateDayStates();
+    if (modalDateKey) {
+      renderModalTimes(modalDateKey);
+      updateHelperMessage(modalDateKey);
+    } else {
+      updateHelperMessage(null);
+    }
+    if (modalConfirm) {
+      modalConfirm.disabled = false;
+      modalConfirm.textContent = confirmDefaultText;
+    }
+  };
+
   const openModal = dateKey => {
     if (!modal || !modalBackdrop) return;
+    if (hasAvailabilityError()) {
+      setError(getAvailabilityErrorMessage());
+      return;
+    }
+    clearModalCloseTimeout();
     modalDateKey = dateKey;
     renderModalTimes(dateKey);
     updateHelperMessage(dateKey);
@@ -1419,6 +1553,10 @@ runWhenReady(() => {
 
   const handleModalConfirm = async () => {
     if (!modalDateKey || !modalTimes || !modalConfirm) return;
+    if (hasAvailabilityError()) {
+      setError(getAvailabilityErrorMessage());
+      return;
+    }
     const inputs = modalTimes.querySelectorAll('input[type="checkbox"][data-time]');
     const payload = {};
     inputs.forEach(input => {
@@ -1488,20 +1626,15 @@ runWhenReady(() => {
       dayButtons.set(iso, dayButton);
     }
 
-    updateDayStates();
-    updateHelperMessage(null);
+    applyAvailabilityState();
   };
 
   if (availabilitySection && calendarWeekdays && calendarGrid) {
     buildAvailabilityCalendar();
     availabilityService.ensureLoaded().catch(() => {});
-    availabilityUnsubscribe = availabilityService.subscribe(snapshot => {
-      availabilitySnapshot = snapshot;
-      updateDayStates();
-      if (modalDateKey) {
-        renderModalTimes(modalDateKey);
-        updateHelperMessage(modalDateKey);
-      }
+    availabilityUnsubscribe = availabilityService.subscribe(state => {
+      availabilityState = state;
+      applyAvailabilityState();
     });
   }
 
@@ -1799,9 +1932,24 @@ runWhenReady(() => {
       : {};
   let storedSubjects = pruneSubjects(bookingState.subjects, storedTimes);
   const storedDateList = Array.isArray(bookingState.dates) ? [...bookingState.dates] : [];
-  let availabilitySnapshot = availabilityService.getSnapshot();
+  let availabilityState = availabilityService.getSnapshot();
   const dayLookup = new Map();
   let availabilityUnsubscribe = null;
+
+  const getAvailabilityData = () => {
+    const data = availabilityState?.data;
+    return data && typeof data === "object" ? data : {};
+  };
+
+  const hasAvailabilityError = () => Boolean(availabilityState?.error);
+
+  const getAvailabilityErrorMessage = () => {
+    const message = availabilityState?.error?.message;
+    if (typeof message === "string" && message.trim()) {
+      return message.trim();
+    }
+    return "We’re unable to load availability right now. Please try again shortly.";
+  };
 
   weekdays.forEach(label => {
     const el = document.createElement("div");
@@ -1836,7 +1984,9 @@ runWhenReady(() => {
 
   const isDateSelectable = dateKey => {
     if (!isValidDateKey(dateKey)) return false;
-    const day = availabilitySnapshot?.[dateKey];
+    if (hasAvailabilityError()) return false;
+    const availabilityData = getAvailabilityData();
+    const day = availabilityData?.[dateKey];
     if (!day) return true;
     return TIME_SLOT_VALUES.some(timeKey => day[timeKey] !== false);
   };
@@ -1869,7 +2019,12 @@ runWhenReady(() => {
   };
 
   const updateWeekRestrictions = () => {
+    const hasError = hasAvailabilityError();
     dayLookup.forEach(dayEl => {
+      if (hasError) {
+        dayEl.classList.add("disabled");
+        return;
+      }
       const weekKey = dayEl.dataset.week;
       const count = weekSelections.get(weekKey) || 0;
       if (dayEl.classList.contains("selected")) {
@@ -1886,6 +2041,15 @@ runWhenReady(() => {
   };
 
   const refreshHelper = () => {
+    if (!helper) return;
+    if (hasAvailabilityError()) {
+      helper.textContent = getAvailabilityErrorMessage();
+      if (selectButton) {
+        selectButton.disabled = true;
+        selectButton.setAttribute("aria-disabled", "true");
+      }
+      return;
+    }
     const totalSelected = selectedDates.size;
     if (totalSelected === 0) {
       helper.textContent = "Choose a day to continue.";
@@ -1897,14 +2061,23 @@ runWhenReady(() => {
 
     if (selectButton) {
       selectButton.disabled = totalSelected === 0;
+      selectButton.setAttribute("aria-disabled", totalSelected === 0 ? "true" : "false");
     }
   };
 
   const updateDayAvailabilityClasses = () => {
+    const hasError = hasAvailabilityError();
     dayLookup.forEach((dayEl, dateKey) => {
+      if (hasError) {
+        dayEl.disabled = true;
+        dayEl.classList.add("disabled");
+        dayEl.setAttribute("aria-disabled", "true");
+        return;
+      }
       const selectable = isDateSelectable(dateKey);
       dayEl.classList.toggle("unavailable", !selectable);
       dayEl.disabled = !selectable;
+      dayEl.classList.toggle("disabled", !selectable && !dayEl.classList.contains("selected"));
       dayEl.setAttribute("aria-disabled", String(!selectable));
       if (!selectable) {
         dayEl.classList.remove("selected");
@@ -1914,6 +2087,9 @@ runWhenReady(() => {
   };
 
   const removeUnavailableSelections = () => {
+    if (hasAvailabilityError()) {
+      return false;
+    }
     let removed = false;
     Array.from(selectedDates).forEach(dateKey => {
       if (!isDateSelectable(dateKey)) {
@@ -1929,15 +2105,23 @@ runWhenReady(() => {
     return removed;
   };
 
-  const handleAvailabilityUpdate = snapshot => {
-    availabilitySnapshot = snapshot;
+  const applyAvailabilityState = () => {
     updateDayAvailabilityClasses();
-    const removed = removeUnavailableSelections();
-    if (removed) {
-      updateWeekRestrictions();
+    const hasError = hasAvailabilityError();
+    let removed = false;
+    if (!hasError) {
+      removed = removeUnavailableSelections();
+    }
+    updateWeekRestrictions();
+    if (!hasError && removed) {
       persistSelections();
     }
     refreshHelper();
+  };
+
+  const handleAvailabilityUpdate = state => {
+    availabilityState = state;
+    applyAvailabilityState();
   };
 
   for (let i = 0; i < totalDays; i++) {
@@ -1967,6 +2151,12 @@ runWhenReady(() => {
     }
 
     dayEl.addEventListener("click", () => {
+      if (hasAvailabilityError()) {
+        if (helper) {
+          helper.textContent = getAvailabilityErrorMessage();
+        }
+        return;
+      }
       if (!isDateSelectable(iso)) {
         helper.textContent = "No availability for this date.";
         return;
@@ -2008,21 +2198,15 @@ runWhenReady(() => {
     grid.appendChild(dayEl);
   }
 
-  refreshHelper();
-  updateDayAvailabilityClasses();
-  const removedInitially = removeUnavailableSelections();
-  updateWeekRestrictions();
   persistSelections();
-  if (removedInitially) {
-    refreshHelper();
-  }
+  applyAvailabilityState();
 
   availabilityService.ensureLoaded().catch(() => {});
   availabilityUnsubscribe = availabilityService.subscribe(handleAvailabilityUpdate);
 
   if (selectButton) {
     selectButton.addEventListener("click", () => {
-      if (selectButton.disabled) return;
+      if (selectButton.disabled || hasAvailabilityError()) return;
       persistSelections();
       window.location.href = "selecttime.html";
     });
@@ -2124,8 +2308,23 @@ runWhenReady(() => {
     subjects: {},
   };
 
-  let availabilitySnapshot = availabilityService.getSnapshot();
+  let availabilityState = availabilityService.getSnapshot();
   let availabilityUnsubscribe = null;
+
+  const getAvailabilityData = () => {
+    const data = availabilityState?.data;
+    return data && typeof data === "object" ? data : {};
+  };
+
+  const hasAvailabilityError = () => Boolean(availabilityState?.error);
+
+  const getAvailabilityErrorMessage = () => {
+    const message = availabilityState?.error?.message;
+    if (typeof message === "string" && message.trim()) {
+      return message.trim();
+    }
+    return "We’re unable to load availability right now. Please try again shortly.";
+  };
 
   dates.forEach(dateKey => {
     const source = storedTimes[dateKey];
@@ -2144,7 +2343,9 @@ runWhenReady(() => {
   const ensureArray = value => (Array.isArray(value) ? value : []);
 
   const isTimeUnavailable = (dateKey, timeKey) => {
-    const day = availabilitySnapshot?.[dateKey];
+    if (hasAvailabilityError()) return true;
+    const availabilityData = getAvailabilityData();
+    const day = availabilityData?.[dateKey];
     if (!day) return false;
     return day[timeKey] === false;
   };
@@ -2169,6 +2370,29 @@ runWhenReady(() => {
   saveState();
 
   const applyUnlocking = () => {
+    const errorActive = hasAvailabilityError();
+    if (errorActive) {
+      cards.forEach(card => {
+        card.classList.add("syncing");
+        card.classList.remove("locked");
+        card.setAttribute("aria-busy", "true");
+        const status = card.querySelector("[data-card-status]");
+        if (status) {
+          status.textContent = "Reconnecting to availability…";
+        }
+        const inputs = card.querySelectorAll('input[type="checkbox"]');
+        inputs.forEach(input => {
+          const option = input.closest(".time-option");
+          if (option) {
+            option.classList.add("time-option--syncing");
+            option.classList.remove("time-option--unavailable");
+          }
+          input.disabled = true;
+        });
+      });
+      return false;
+    }
+
     let highestUnlocked = 0;
     for (let i = 0; i < bookingData.dates.length; i++) {
       const dateKey = bookingData.dates[i];
@@ -2183,24 +2407,27 @@ runWhenReady(() => {
     let stateModified = false;
 
     cards.forEach((card, index) => {
-      const locked = index > highestUnlocked;
-      card.classList.toggle("locked", locked);
+      card.classList.remove("syncing");
+      card.removeAttribute("aria-busy");
       const status = card.querySelector("[data-card-status]");
-      if (status) {
-        status.textContent = locked
-          ? "Locked until you pick a time above."
-          : "Choose one-hour slots for this date.";
-      }
       const inputs = card.querySelectorAll('input[type="checkbox"]');
       const dateKey = card.dataset.date;
       const selections = new Set(ensureArray(bookingData.times[dateKey]));
       let removed = false;
 
+      const locked = index > highestUnlocked;
+      card.classList.toggle("locked", locked);
+      if (status) {
+        status.textContent = locked
+          ? "Locked until you pick a time above."
+          : "Choose one-hour slots for this date.";
+      }
       if (locked) {
         inputs.forEach(input => {
           const option = input.closest(".time-option");
           const unavailable = isTimeUnavailable(dateKey, input.value);
           if (option) {
+            option.classList.remove("time-option--syncing");
             option.classList.toggle("time-option--unavailable", unavailable);
           }
           if (input.checked) {
@@ -2216,6 +2443,7 @@ runWhenReady(() => {
           const option = input.closest(".time-option");
           const unavailable = isTimeUnavailable(dateKey, input.value);
           if (option) {
+            option.classList.remove("time-option--syncing");
             option.classList.toggle("time-option--unavailable", unavailable);
           }
           if (unavailable) {
@@ -2251,6 +2479,10 @@ runWhenReady(() => {
 
   const refreshHelper = () => {
     if (!helper) return;
+    if (hasAvailabilityError()) {
+      helper.textContent = getAvailabilityErrorMessage();
+      return;
+    }
     const totalSelections = bookingData.dates.reduce((acc, dateKey) => {
       return acc + ensureArray(bookingData.times[dateKey]).length;
     }, 0);
@@ -2284,12 +2516,16 @@ runWhenReady(() => {
     const dateKey = input.dataset.date;
     const value = input.value;
     if (!dateKey || !value) return;
+    const selections = new Set(ensureArray(bookingData.times[dateKey]));
+    if (hasAvailabilityError()) {
+      input.checked = selections.has(value);
+      return;
+    }
     if (isTimeUnavailable(dateKey, value)) {
       input.checked = false;
       return;
     }
 
-    const selections = new Set(ensureArray(bookingData.times[dateKey]));
     if (input.checked) {
       selections.add(value);
     } else {
@@ -2349,6 +2585,7 @@ runWhenReady(() => {
     timesColumn.className = "date-card__times";
 
     const selectedTimes = new Set(ensureArray(bookingData.times[iso]));
+    const errorActive = hasAvailabilityError();
 
     hours.forEach(({ value, display }) => {
       const option = document.createElement("label");
@@ -2360,13 +2597,18 @@ runWhenReady(() => {
       input.value = value;
       input.dataset.date = iso;
       input.id = `${iso}-${value}`;
-      const unavailable = isTimeUnavailable(iso, value);
-      if (unavailable) {
-        selectedTimes.delete(value);
+      if (errorActive) {
         option.classList.add("time-option--unavailable");
+        input.disabled = true;
+      } else {
+        const unavailable = isTimeUnavailable(iso, value);
+        if (unavailable) {
+          selectedTimes.delete(value);
+          option.classList.add("time-option--unavailable");
+        }
+        input.disabled = unavailable;
       }
       input.checked = selectedTimes.has(value);
-      input.disabled = unavailable;
       input.addEventListener("change", handleTimeChange);
 
       const text = document.createElement("span");
@@ -2404,8 +2646,8 @@ runWhenReady(() => {
   window.addEventListener("resize", updateFocusedCard);
 
   availabilityService.ensureLoaded().catch(() => {});
-  availabilityUnsubscribe = availabilityService.subscribe(snapshot => {
-    availabilitySnapshot = snapshot;
+  availabilityUnsubscribe = availabilityService.subscribe(state => {
+    availabilityState = state;
     const modified = applyUnlocking();
     if (modified) {
       saveState();
