@@ -35,6 +35,20 @@
       <p class="admin-error" data-admin-error hidden></p>
       <p class="admin-empty" data-admin-empty hidden>No bookings yet. Check back after your first payment.</p>
 
+      <section
+        class="calendar-container admin-calendar"
+        aria-label="Booking calendar overview"
+        data-admin-calendar
+      >
+        <h3 class="calendar-title">booking calendar.</h3>
+        <p class="calendar-subtitle">Review upcoming availability for the next four weeks.</p>
+        <div class="calendar-body">
+          <div class="calendar-weekdays" data-admin-calendar-weekdays></div>
+          <div class="calendar-grid" data-admin-calendar-grid></div>
+        </div>
+        <p class="calendar-helper">Dates shown here mirror the sessions listed in the table.</p>
+      </section>
+
       <div class="admin-table-wrapper">
         <table class="admin-table">
           <thead>
