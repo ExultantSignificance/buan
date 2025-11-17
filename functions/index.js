@@ -41,6 +41,20 @@ const summariseSessions = sessions => {
   return trimMetadataValue(summary);
 };
 
+const summariseBundles = bundles => {
+  if (!Array.isArray(bundles) || !bundles.length) {
+    return "";
+  }
+  const summary = bundles
+    .map(bundle => {
+      const subject = bundle.subjectLabel || bundle.subject || "Bundle";
+      const hours = bundle.hours || bundle.quantity || "";
+      return `${subject} (${hours}h)`;
+    })
+    .join(" | ");
+  return trimMetadataValue(summary);
+};
+
 export const createCheckoutSession = onRequest(async (req, res) => {
   setCors(res);
 
@@ -62,11 +76,19 @@ export const createCheckoutSession = onRequest(async (req, res) => {
     }
 
     const sessions = Array.isArray(booking.sessions) ? booking.sessions : [];
+    const bundles = Array.isArray(booking.bundles) ? booking.bundles : [];
     const lineItems = [];
 
     sessions.forEach(session => {
       if (session && typeof session.priceId === "string" && session.priceId) {
         lineItems.push({ price: session.priceId, quantity: 1 });
+      }
+    });
+
+    bundles.forEach(bundle => {
+      if (bundle && typeof bundle.priceId === "string" && bundle.priceId) {
+        const quantity = Math.max(1, Math.floor(typeof bundle.quantity === "number" ? bundle.quantity : (bundle.hours || 1)));
+        lineItems.push({ price: bundle.priceId, quantity });
       }
     });
 
@@ -89,6 +111,7 @@ export const createCheckoutSession = onRequest(async (req, res) => {
       metadata.total_amount = trimMetadataValue(String(booking.totalAmount));
     }
     metadata.session_count = trimMetadataValue(String(sessions.length || 1));
+    if (bundles.length) metadata.bundle_count = trimMetadataValue(String(bundles.length));
     if (userId) metadata.user_id = trimMetadataValue(String(userId));
 
     const bookingPayload = JSON.stringify({
@@ -99,6 +122,13 @@ export const createCheckoutSession = onRequest(async (req, res) => {
         subjectId: session.subjectId || "",
         priceId: session.priceId || "",
       })),
+      bundles: bundles.map(bundle => ({
+        subject: bundle.subject || "",
+        subjectLabel: bundle.subjectLabel || "",
+        subjectId: bundle.subjectId || "",
+        hours: bundle.hours || bundle.quantity || null,
+        priceId: bundle.priceId || "",
+      })),
       totalAmount: booking.totalAmount || null,
       currency: booking.currency || "AUD",
     });
@@ -106,7 +136,9 @@ export const createCheckoutSession = onRequest(async (req, res) => {
     if (bookingPayload.length <= 500) {
       metadata.booking_payload = bookingPayload;
     } else {
-      metadata.booking_summary = summariseSessions(sessions);
+      const sessionSummary = summariseSessions(sessions);
+      const bundleSummary = summariseBundles(bundles);
+      metadata.booking_summary = [sessionSummary, bundleSummary].filter(Boolean).join(" | ");
     }
 
     const sessionParams = {
@@ -159,12 +191,16 @@ export const handleStripeWebhook = onRequest(async (req, res) => {
     const session = event.data.object;
     const metadata = session.metadata || {};
     let bookingSessions = [];
+    let bookingBundles = [];
 
     if (metadata.booking_payload) {
       try {
         const payload = JSON.parse(metadata.booking_payload);
         if (payload && Array.isArray(payload.sessions)) {
           bookingSessions = payload.sessions;
+        }
+        if (payload && Array.isArray(payload.bundles)) {
+          bookingBundles = payload.bundles;
         }
       } catch (error) {
         console.warn("Unable to parse booking payload metadata", error);
@@ -177,6 +213,10 @@ export const handleStripeWebhook = onRequest(async (req, res) => {
       }));
     }
 
+    if (!bookingBundles.length && metadata.bundle_count) {
+      bookingBundles = [{ summary: metadata.booking_summary || "bundle" }];
+    }
+
     const doc = {
       email: session.customer_details?.email || session.customer_email || "unknown",
       paid: true,
@@ -184,6 +224,7 @@ export const handleStripeWebhook = onRequest(async (req, res) => {
       currency: session.currency?.toUpperCase() || "AUD",
       createdAt: new Date().toISOString(),
       sessions: bookingSessions,
+      bundles: bookingBundles,
       status: "paid",
       checkoutSessionId: session.id,
       paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null,
