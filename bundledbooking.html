@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bundle Booking | Buan Tutoring</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+    <a href="signin.html" class="auth-link">Sign In</a>
+    <a href="signup.html" class="auth-link auth-link--primary">Sign Up</a>
+  </nav>
+
+  <main class="bundle-booking">
+    <section class="bundle-hero fade-in">
+      <p class="eyebrow">Bundles that grow with you</p>
+      <h2>Choose your hours, then we tailor the learning.</h2>
+      <p class="lede">Mix-and-match specialist maths, sciences, English, and lower grades. Start muted — click to awaken the perfect bundle.</p>
+    </section>
+
+    <section class="bundle-table-section">
+      <div class="section-header">
+        <h3>Pick a bundle</h3>
+        <p>Select 10, 20, or 40 hours for each subject. Options begin muted and animate when activated.</p>
+      </div>
+
+      <div class="bundle-table-wrapper">
+        <table class="bundle-table" data-bundle-grid>
+          <thead>
+            <tr>
+              <th>Subject</th>
+              <th>10 hours</th>
+              <th>20 hours</th>
+              <th>40 hours</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Specialists</td>
+              <td><button class="bundle-option" data-bundle-option data-subject="specialists" data-hours="10">Select 10h</button></td>
+              <td><button class="bundle-option" data-bundle-option data-subject="specialists" data-hours="20">Select 20h</button></td>
+              <td><button class="bundle-option" data-bundle-option data-subject="specialists" data-hours="40">Select 40h</button></td>
+            </tr>
+            <tr>
+              <td>Methods</td>
+              <td><button class="bundle-option" data-bundle-option data-subject="methods" data-hours="10">Select 10h</button></td>
+              <td><button class="bundle-option" data-bundle-option data-subject="methods" data-hours="20">Select 20h</button></td>
+              <td><button class="bundle-option" data-bundle-option data-subject="methods" data-hours="40">Select 40h</button></td>
+            </tr>
+            <tr>
+              <td>Chemistry</td>
+              <td><button class="bundle-option" data-bundle-option data-subject="chemistry" data-hours="10">Select 10h</button></td>
+              <td><button class="bundle-option" data-bundle-option data-subject="chemistry" data-hours="20">Select 20h</button></td>
+              <td><button class="bundle-option" data-bundle-option data-subject="chemistry" data-hours="40">Select 40h</button></td>
+            </tr>
+            <tr>
+              <td>Physics</td>
+              <td><button class="bundle-option" data-bundle-option data-subject="physics" data-hours="10">Select 10h</button></td>
+              <td><button class="bundle-option" data-bundle-option data-subject="physics" data-hours="20">Select 20h</button></td>
+              <td><button class="bundle-option" data-bundle-option data-subject="physics" data-hours="40">Select 40h</button></td>
+            </tr>
+            <tr>
+              <td>General English</td>
+              <td><button class="bundle-option" data-bundle-option data-subject="general-english" data-hours="10">Select 10h</button></td>
+              <td><button class="bundle-option" data-bundle-option data-subject="general-english" data-hours="20">Select 20h</button></td>
+              <td><button class="bundle-option" data-bundle-option data-subject="general-english" data-hours="40">Select 40h</button></td>
+            </tr>
+            <tr>
+              <td>Grade 7–9</td>
+              <td><button class="bundle-option" data-bundle-option data-subject="grade-7-9" data-hours="10">Select 10h</button></td>
+              <td><button class="bundle-option" data-bundle-option data-subject="grade-7-9" data-hours="20">Select 20h</button></td>
+              <td><button class="bundle-option" data-bundle-option data-subject="grade-7-9" data-hours="40">Select 40h</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bundle-summary">
+        <p data-bundle-selection>Start by choosing a bundle option.</p>
+        <button class="bundle-cta" data-bundle-checkout disabled>Checkout Bundles</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="normal-footer">
+    <p>Contact:
+      <a href="mailto:buangareth@gmail.com">buangareth@gmail.com</a> |
+      <a href="tel:+61412999120">+61 412 999 120</a>
+    </p>
+  </footer>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>

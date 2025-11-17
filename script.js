@@ -2964,3 +2964,76 @@ runWhenReady(async () => {
   });
 });
 
+
+runWhenReady(() => {
+  const bundleGrid = document.querySelector("[data-bundle-grid]");
+  const checkoutButton = document.querySelector("[data-bundle-checkout]");
+  const selectionText = document.querySelector("[data-bundle-selection]");
+
+  if (!bundleGrid || !checkoutButton || !selectionText) return;
+
+  const selectedBundles = new Map();
+
+  const updateSummary = () => {
+    if (!selectedBundles.size) {
+      selectionText.textContent = "Start by choosing a bundle option.";
+      checkoutButton.disabled = true;
+      checkoutButton.setAttribute("aria-disabled", "true");
+      return;
+    }
+
+    const details = Array.from(selectedBundles.entries()).map(([subject, hours]) => {
+      const formattedSubject = subject
+        .split("-")
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+      return `${formattedSubject} (${hours}h)`;
+    });
+
+    selectionText.textContent = `Selected: ${details.join(", ")}`;
+    checkoutButton.disabled = false;
+    checkoutButton.setAttribute("aria-disabled", "false");
+  };
+
+  const toggleSelection = (button) => {
+    const subject = button.dataset.subject;
+    const hours = button.dataset.hours;
+    if (!subject || !hours) return;
+
+    const subjectButtons = bundleGrid.querySelectorAll(`[data-subject="${subject}"]`);
+    const alreadyActive = button.classList.contains("is-active");
+
+    subjectButtons.forEach(btn => btn.classList.remove("is-active"));
+
+    if (alreadyActive) {
+      selectedBundles.delete(subject);
+    } else {
+      button.classList.add("is-active");
+      selectedBundles.set(subject, hours);
+    }
+
+    updateSummary();
+  };
+
+  bundleGrid.addEventListener("click", event => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.matches("[data-bundle-option]")) return;
+    toggleSelection(target);
+  });
+
+  checkoutButton.addEventListener("click", () => {
+    if (checkoutButton.disabled || !selectedBundles.size) return;
+
+    const payload = Array.from(selectedBundles.entries()).map(([subject, hours]) => ({ subject, hours }));
+    try {
+      sessionStorage.setItem("buan.bundleSelections", JSON.stringify(payload));
+    } catch (error) {
+      console.warn("Unable to persist bundle selection", error);
+    }
+
+    window.location.href = "checkout.html";
+  });
+
+  updateSummary();
+});
