@@ -435,9 +435,9 @@ const DEFAULT_BUNDLE_PRICING = {
     subjectId: "specialist-mathematics",
     baseRate: 60,
     priceIds: {
-      10: "price_1SOWxRF9Dbt33lFI3IVTMIBf",
-      20: "price_1SOWxwF9Dbt33lFIDV4CGgx5",
-      40: "price_1SOWxnF9Dbt33lFI1FfkPPHV",
+      10: "price_1SOJBuF9Dbt33lFIRT2wiwfj",
+      20: "price_1SOJLpF9Dbt33lFIGiQzVRWm",
+      40: "price_1SOJP1F9Dbt33lFIWb9x0Uuk",
     },
   },
   methods: {
@@ -445,9 +445,9 @@ const DEFAULT_BUNDLE_PRICING = {
     subjectId: "mathematical-methods",
     baseRate: 55,
     priceIds: {
-      10: "price_1SOWxgF9Dbt33lFIJxjj7vB6",
-      20: "price_1SOWxXF9Dbt33lFIFmhL3DwL",
-      40: "price_1SOWxsF9Dbt33lFIYpbTJBxy",
+      10: "price_1SOJJSF9Dbt33lFIYazUes2Q",
+      20: "price_1SOJMcF9Dbt33lFIWQ7DGvKV",
+      40: "price_1SOJPYF9Dbt33lFI69irabJI",
     },
   },
   chemistry: {
@@ -455,9 +455,9 @@ const DEFAULT_BUNDLE_PRICING = {
     subjectId: "chemistry",
     baseRate: 50,
     priceIds: {
-      10: "price_1SOWxOF9Dbt33lFIodqwCtBk",
-      20: "price_1SOWx5F9Dbt33lFIyb3R7rDD",
-      40: "price_1SOWxjF9Dbt33lFIM3ytGBYe",
+      10: "price_1SOJKYF9Dbt33lFI2pD05mja",
+      20: "price_1SOJNwF9Dbt33lFIHmYoiZq2",
+      40: "price_1SOJQOF9Dbt33lFI7zHDvUGW",
     },
   },
   physics: {
@@ -465,9 +465,9 @@ const DEFAULT_BUNDLE_PRICING = {
     subjectId: "physics",
     baseRate: 50,
     priceIds: {
-      10: "price_1SOWxQF9Dbt33lFInSbafnF1",
-      20: "price_1SOWxDF9Dbt33lFIiJPeeemK",
-      40: "price_1SOWxxF9Dbt33lFI7TQkExuL",
+      10: "price_1SOJK8F9Dbt33lFIyKsRZx3R",
+      20: "price_1SOJN1F9Dbt33lFIbO0GhpX4",
+      40: "price_1SOJQ1F9Dbt33lFI0y3lC2nG",
     },
   },
   "general-english": {
@@ -475,9 +475,9 @@ const DEFAULT_BUNDLE_PRICING = {
     subjectId: "english",
     baseRate: 40,
     priceIds: {
-      10: "price_1SOWxNF9Dbt33lFIbQvp2kbP",
-      20: "price_1SOWxZF9Dbt33lFIyCAdBOKn",
-      40: "price_1SOWxzF9Dbt33lFISv0sFYNH",
+      10: "price_1SOJLHF9Dbt33lFIJ6HFTJ9K",
+      20: "price_1SOJOLF9Dbt33lFIHHCjGgWA",
+      40: "price_1SOJQoF9Dbt33lFIb8TyV3pJ",
     },
   },
   "grade-7-9": {
@@ -485,9 +485,9 @@ const DEFAULT_BUNDLE_PRICING = {
     subjectId: "grade-7-9",
     baseRate: 35,
     priceIds: {
-      10: "price_1SOWwHF9Dbt33lFIFOBbD1pG",
-      20: "price_1SOWwpF9Dbt33lFIPDqBcx1v",
-      40: "price_bundle_grade_7_9_40",
+      10: "price_1SOJRhF9Dbt33lFI7juqs1Ik",
+      20: "price_1SOJSCF9Dbt33lFIFgd1nyM7",
+      40: "price_1SOJSjF9Dbt33lFIUgAcNBaE",
     },
   },
 };
