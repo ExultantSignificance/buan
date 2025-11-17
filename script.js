@@ -113,6 +113,7 @@ if (signinForm) {
 /*not firebase*/
 const BOOKING_STORAGE_KEY = "buan.bookingState";
 const PENDING_BOOKING_KEY = "pendingBooking";
+const PENDING_BUNDLE_KEY = "pendingBundle";
 const STRIPE_PUBLISHABLE_KEY = "pk_live_51SJDOtF9Dbt33lFIbAqcbH9jfcTMyssD1VXIcIbS4ybhWIPYkrtzhywDBijTUHbzmhXlXIr8YmerGPHvlEyzvuC200RIpQC4EY";
 const FUNCTIONS_BASE_URL = "https://us-central1-buantutoring-2d3e9.cloudfunctions.net";
 const CREATE_SESSION_ENDPOINT = `${FUNCTIONS_BASE_URL}/createCheckoutSession`;
@@ -330,11 +331,32 @@ const readPendingBooking = () => {
   }
 };
 
+const readPendingBundle = () => {
+  try {
+    const raw = sessionStorage.getItem(PENDING_BUNDLE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch (error) {
+    console.warn("Unable to read pending bundle", error);
+    return null;
+  }
+};
+
 const clearPendingBooking = () => {
   try {
     sessionStorage.removeItem(PENDING_BOOKING_KEY);
   } catch (error) {
     console.warn("Unable to clear pending booking", error);
+  }
+};
+
+const clearPendingBundle = () => {
+  try {
+    sessionStorage.removeItem(PENDING_BUNDLE_KEY);
+  } catch (error) {
+    console.warn("Unable to clear pending bundle", error);
   }
 };
 
@@ -404,6 +426,116 @@ const formatDisplayDate = iso => {
   });
   return formatter.format(date);
 };
+
+const BUNDLE_TIERS = [10, 20, 40];
+
+const DEFAULT_BUNDLE_PRICING = {
+  specialists: {
+    label: "Specialist Mathematics",
+    subjectId: "specialist-mathematics",
+    baseRate: 60,
+    priceIds: {
+      10: "price_1SOWxRF9Dbt33lFI3IVTMIBf",
+      20: "price_1SOWxwF9Dbt33lFIDV4CGgx5",
+      40: "price_1SOWxnF9Dbt33lFI1FfkPPHV",
+    },
+  },
+  methods: {
+    label: "Mathematical Methods",
+    subjectId: "mathematical-methods",
+    baseRate: 55,
+    priceIds: {
+      10: "price_1SOWxgF9Dbt33lFIJxjj7vB6",
+      20: "price_1SOWxXF9Dbt33lFIFmhL3DwL",
+      40: "price_1SOWxsF9Dbt33lFIYpbTJBxy",
+    },
+  },
+  chemistry: {
+    label: "Chemistry",
+    subjectId: "chemistry",
+    baseRate: 50,
+    priceIds: {
+      10: "price_1SOWxOF9Dbt33lFIodqwCtBk",
+      20: "price_1SOWx5F9Dbt33lFIyb3R7rDD",
+      40: "price_1SOWxjF9Dbt33lFIM3ytGBYe",
+    },
+  },
+  physics: {
+    label: "Physics",
+    subjectId: "physics",
+    baseRate: 50,
+    priceIds: {
+      10: "price_1SOWxQF9Dbt33lFInSbafnF1",
+      20: "price_1SOWxDF9Dbt33lFIiJPeeemK",
+      40: "price_1SOWxxF9Dbt33lFI7TQkExuL",
+    },
+  },
+  "general-english": {
+    label: "General English",
+    subjectId: "english",
+    baseRate: 40,
+    priceIds: {
+      10: "price_1SOWxNF9Dbt33lFIbQvp2kbP",
+      20: "price_1SOWxZF9Dbt33lFIyCAdBOKn",
+      40: "price_1SOWxzF9Dbt33lFISv0sFYNH",
+    },
+  },
+  "grade-7-9": {
+    label: "Grade 7–9",
+    subjectId: "grade-7-9",
+    baseRate: 35,
+    priceIds: {
+      10: "price_1SOWwHF9Dbt33lFIFOBbD1pG",
+      20: "price_1SOWwpF9Dbt33lFIPDqBcx1v",
+      40: "price_bundle_grade_7_9_40",
+    },
+  },
+};
+
+const calculateBundlePrice = (hours, baseRate) => {
+  const discount = hours === 10 ? 0.05 : hours === 20 ? 0.1 : hours === 40 ? 0.2 : 0;
+  return baseRate * hours * (1 - discount);
+};
+
+const buildBundleCatalog = () => {
+  const config = typeof window !== "undefined" && window.BUAN_BUNDLE_PRICING
+    ? window.BUAN_BUNDLE_PRICING
+    : DEFAULT_BUNDLE_PRICING;
+
+  const catalog = new Map();
+
+  Object.entries(config || {}).forEach(([subject, data]) => {
+    if (!subject || !data) return;
+    const label = typeof data.label === "string" && data.label.trim()
+      ? data.label.trim()
+      : subject;
+    const baseRate = typeof data.baseRate === "number" ? data.baseRate : 0;
+    const subjectId = typeof data.subjectId === "string" ? data.subjectId : subject;
+    const priceIds = data.priceIds && typeof data.priceIds === "object" ? data.priceIds : {};
+
+    const tiers = new Map();
+    BUNDLE_TIERS.forEach(hours => {
+      const priceId = typeof priceIds[hours] === "string" ? priceIds[hours] : "";
+      tiers.set(hours, {
+        hours,
+        priceId,
+        price: calculateBundlePrice(hours, baseRate),
+        quantity: hours,
+      });
+    });
+
+    catalog.set(subject, {
+      label,
+      subjectId,
+      tiers,
+      currency: "AUD",
+    });
+  });
+
+  return catalog;
+};
+
+const BUNDLE_CATALOG = buildBundleCatalog();
 
 const formatDisplayTime = timeValue => {
   if (!timeValue) return "";
@@ -1045,6 +1177,7 @@ runWhenReady(() => {
   if (!successPage) return;
 
   clearPendingBooking();
+  clearPendingBundle();
   clearBookingState();
 });
 
@@ -1053,6 +1186,7 @@ runWhenReady(() => {
   if (!cancelPage) return;
 
   clearPendingBooking();
+  clearPendingBundle();
 });
 
 runWhenReady(() => {
@@ -1070,7 +1204,12 @@ runWhenReady(() => {
   const checkoutContainer = checkoutPage.querySelector("#checkout");
 
   const booking = readPendingBooking();
-  if (!booking || !Array.isArray(booking.sessions) || !booking.sessions.length) {
+  const bundleBooking = readPendingBundle();
+
+  const hasSessions = Boolean(booking && Array.isArray(booking.sessions) && booking.sessions.length);
+  const hasBundles = Boolean(bundleBooking && Array.isArray(bundleBooking.bundles) && bundleBooking.bundles.length);
+
+  if (!hasSessions && !hasBundles) {
     if (statusEl) {
       statusEl.textContent = "No booking found. Please start again.";
     }
@@ -1080,33 +1219,65 @@ runWhenReady(() => {
     return;
   }
 
-  const sessions = booking.sessions;
-  const currency = booking.currency || "AUD";
+  const isBundleCheckout = hasBundles && !hasSessions;
+  const currency = (bundleBooking && bundleBooking.currency) || booking?.currency || "AUD";
 
   if (summaryList) {
     summaryList.innerHTML = "";
-    sessions.forEach(session => {
+    const items = isBundleCheckout ? bundleBooking.bundles : booking?.sessions || [];
+    items.forEach(entry => {
       const item = document.createElement("li");
       item.className = "checkout-summary__item";
-      const subjectText = session.subject || session.subjectId || "Session";
-      const dateText = formatDisplayDate(session.date);
-      const timeText = formatDisplayTime(session.time);
-      const priceText = typeof session.price === "number"
-        ? formatCurrency(session.price, currency)
-        : "";
-      item.innerHTML = `
-        <div class="checkout-summary__details">
-          <span class="checkout-summary__subject">${subjectText}</span>
-          <span class="checkout-summary__datetime">${dateText} · ${timeText}</span>
-        </div>
-        <span class="checkout-summary__price">${priceText}</span>
-      `;
+      if (isBundleCheckout) {
+        const subjectText = entry.subjectLabel || entry.subject || "Bundle";
+        const tierText = `${entry.hours || entry.quantity || ""} hours`.trim();
+        const priceText = typeof entry.price === "number"
+          ? formatCurrency(entry.price, currency)
+          : "";
+        item.innerHTML = `
+          <div class="checkout-summary__details">
+            <span class="checkout-summary__subject">${subjectText}</span>
+            <span class="checkout-summary__datetime">${tierText}</span>
+          </div>
+          <span class="checkout-summary__price">${priceText}</span>
+        `;
+      } else {
+        const subjectText = entry.subject || entry.subjectId || "Session";
+        const dateText = formatDisplayDate(entry.date);
+        const timeText = formatDisplayTime(entry.time);
+        const priceText = typeof entry.price === "number"
+          ? formatCurrency(entry.price, currency)
+          : "";
+        item.innerHTML = `
+          <div class="checkout-summary__details">
+            <span class="checkout-summary__subject">${subjectText}</span>
+            <span class="checkout-summary__datetime">${dateText} · ${timeText}</span>
+          </div>
+          <span class="checkout-summary__price">${priceText}</span>
+        `;
+      }
       summaryList.appendChild(item);
     });
   }
 
-  if (totalEl && typeof booking.totalAmount === "number") {
-    totalEl.textContent = formatCurrency(booking.totalAmount, currency);
+  const computedBundleTotal = isBundleCheckout
+    ? (typeof bundleBooking.totalAmount === "number"
+      ? bundleBooking.totalAmount
+      : bundleBooking.bundles.reduce((total, bundle) => total + (typeof bundle.price === "number" ? bundle.price : 0), 0))
+    : null;
+
+  const computedSessionTotal = !isBundleCheckout
+    ? (typeof booking?.totalAmount === "number"
+      ? booking.totalAmount
+      : (Array.isArray(booking?.sessions)
+        ? booking.sessions.reduce((total, session) => total + (typeof session.price === "number" ? session.price : 0), 0)
+        : null))
+    : null;
+
+  const totalAmount = isBundleCheckout ? computedBundleTotal : computedSessionTotal;
+
+  if (totalEl && typeof totalAmount === "number") {
+    totalEl.textContent = formatCurrency(totalAmount, currency);
   }
 
   const createSession = async mode => {
@@ -1116,24 +1287,28 @@ runWhenReady(() => {
 
     const user = firebaseAuth.currentUser;
 
-    const email = user?.email || booking.email || null;
-    const sessionsPayload = Array.isArray(booking.sessions) ? booking.sessions : [];
-    const bookingPayload = {
-      ...booking,
-      sessions: sessionsPayload,
-      currency,
-    };
+    const email = user?.email || booking?.email || bundleBooking?.email || null;
+    const sessionsPayload = Array.isArray(booking?.sessions) ? booking.sessions : [];
+    const bundlePayload = Array.isArray(bundleBooking?.bundles) ? bundleBooking.bundles : [];
+    const bookingPayload = isBundleCheckout
+      ? {
+        ...bundleBooking,
+        bundles: bundlePayload,
+        sessions: [],
+        currency,
+      }
+      : {
+        ...booking,
+        sessions: sessionsPayload,
+        currency,
+      };
 
-    if (typeof booking.totalAmount === "number") {
-      bookingPayload.totalAmount = booking.totalAmount;
-    } else if (typeof booking.total === "number") {
-      bookingPayload.totalAmount = booking.total;
-    }
-
-    if (typeof booking.total === "number") {
+    if (typeof totalAmount === "number") {
+      bookingPayload.totalAmount = totalAmount;
+      bookingPayload.total = totalAmount;
+    } else if (typeof booking?.total === "number") {
       bookingPayload.total = booking.total;
-    } else if (typeof booking.totalAmount === "number") {
-      bookingPayload.total = booking.totalAmount;
+      bookingPayload.totalAmount = booking.total;
     }
 
     if (email) {
@@ -2974,6 +3149,24 @@ runWhenReady(() => {
 
   const selectedBundles = new Map();
 
+  const getBundleSelection = (subject, hours) => {
+    const config = BUNDLE_CATALOG.get(subject);
+    if (!config) return null;
+    const tier = config.tiers.get(Number(hours));
+    if (!tier || !tier.priceId) return null;
+
+    return {
+      subject,
+      subjectId: config.subjectId,
+      subjectLabel: config.label,
+      hours: tier.hours,
+      quantity: tier.quantity,
+      priceId: tier.priceId,
+      price: tier.price,
+      currency: config.currency || "AUD",
+    };
+  };
+
   const updateSummary = () => {
     if (!selectedBundles.size) {
       selectionText.textContent = "Start by choosing a bundle option.";
@@ -2982,12 +3175,9 @@ runWhenReady(() => {
       return;
     }
 
-    const details = Array.from(selectedBundles.entries()).map(([subject, hours]) => {
-      const formattedSubject = subject
-        .split("-")
-        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" ");
-      return `${formattedSubject} (${hours}h)`;
+    const details = Array.from(selectedBundles.values()).map(bundle => {
+      const priceText = typeof bundle.price === "number" ? formatCurrency(bundle.price) : "";
+      return `${bundle.subjectLabel} (${bundle.hours}h) ${priceText}`.trim();
     });
 
     selectionText.textContent = `Selected: ${details.join(", ")}`;
@@ -2995,10 +3185,18 @@ runWhenReady(() => {
     checkoutButton.setAttribute("aria-disabled", "false");
   };
 
-  const toggleSelection = (button) => {
+  const toggleSelection = button => {
     const subject = button.dataset.subject;
     const hours = button.dataset.hours;
     if (!subject || !hours) return;
+
+    const selection = getBundleSelection(subject, hours);
+    if (!selection) {
+      selectionText.textContent = "Bundle price unavailable. Please choose another option.";
+      checkoutButton.disabled = true;
+      checkoutButton.setAttribute("aria-disabled", "true");
+      return;
+    }
 
     const subjectButtons = bundleGrid.querySelectorAll(`[data-subject="${subject}"]`);
     const alreadyActive = button.classList.contains("is-active");
@@ -3009,7 +3207,7 @@ runWhenReady(() => {
       selectedBundles.delete(subject);
     } else {
       button.classList.add("is-active");
-      selectedBundles.set(subject, hours);
+      selectedBundles.set(subject, selection);
     }
 
     updateSummary();
@@ -3025,9 +3223,23 @@ runWhenReady(() => {
   checkoutButton.addEventListener("click", () => {
     if (checkoutButton.disabled || !selectedBundles.size) return;
 
-    const payload = Array.from(selectedBundles.entries()).map(([subject, hours]) => ({ subject, hours }));
+    const bundles = Array.from(selectedBundles.values());
+    const totalAmount = bundles.reduce((total, bundle) => total + (typeof bundle.price === "number" ? bundle.price : 0), 0);
+
+    const payload = {
+      bundles,
+      totalAmount,
+      currency: bundles[0]?.currency || "AUD",
+      type: "bundle",
+    };
+
     try {
-      sessionStorage.setItem("buan.bundleSelections", JSON.stringify(payload));
+      sessionStorage.setItem(PENDING_BUNDLE_KEY, JSON.stringify(payload));
+      sessionStorage.setItem("buan.bundleSelections", JSON.stringify(bundles.map(bundle => ({
+        subject: bundle.subject,
+        hours: bundle.hours,
+      }))));
+      clearPendingBooking();
     } catch (error) {
       console.warn("Unable to persist bundle selection", error);
     }
