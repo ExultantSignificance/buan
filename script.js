@@ -471,6 +471,10 @@ const runWhenReady = callback => {
   }
 };
 
+runWhenReady(() => {
+  document.documentElement.classList.add("js-enabled");
+});
+
 const TIME_SLOT_VALUES = (() => {
   const values = [];
   for (let hour = 8; hour <= 18; hour++) {

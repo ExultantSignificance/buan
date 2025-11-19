@@ -442,12 +442,17 @@ main {
 
 /* Animation helpers */
 .reveal-on-scroll {
-  opacity: 0;
-  transform: translateY(30px);
+  opacity: 1;
+  transform: none;
   transition: opacity 0.8s ease, transform 0.8s ease;
 }
 
-.reveal-on-scroll.is-visible {
+.js-enabled .reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.js-enabled .reveal-on-scroll.is-visible {
   opacity: 1;
   transform: translateY(0);
 }
@@ -780,18 +785,26 @@ body.no-background::after {
 .about-text,
 .review-img,
 .review-text {
-  opacity: 0;
-  transform: translateX(-40px);
+  opacity: 1;
+  transform: none;
   transition: all 0.8s ease-out;
 }
 
-.visible .about-img,
-.visible .review-img {
+.js-enabled .about-img,
+.js-enabled .about-text,
+.js-enabled .review-img,
+.js-enabled .review-text {
+  opacity: 0;
+  transform: translateX(-40px);
+}
+
+.js-enabled .is-visible .about-img,
+.js-enabled .is-visible .review-img {
   animation: slideFadeInLeft 0.8s ease-out forwards;
 }
 
-.visible .about-text,
-.visible .review-text {
+.js-enabled .is-visible .about-text,
+.js-enabled .is-visible .review-text {
   animation: slideFadeInLeft 0.8s ease-out forwards;
   animation-delay: 0.2s; /* text slides slightly after image */
 }
