@@ -1995,38 +1995,66 @@ runWhenReady(() => {
   if (!resourceScroll) return;
 
   const overlay = document.querySelector('[data-resource-overlay]');
+  const pages = resourceScroll.querySelectorAll('.resource-page');
   let scrollLimit = 0;
+  let isLocked = false;
+
+  const updateLockState = locked => {
+    isLocked = locked;
+    resourceScroll.classList.toggle('locked', locked);
+    overlay?.classList.toggle('active', locked);
+    if (locked) {
+      resourceScroll.scrollTop = scrollLimit;
+    }
+  };
+
+  const measureHeight = element => {
+    if (!element) return 0;
+    const rect = element.getBoundingClientRect();
+    if (rect.height) return rect.height;
+    return element.offsetHeight || element.scrollHeight || 0;
+  };
 
   const computeLimit = () => {
-    const pages = resourceScroll.querySelectorAll('.resource-page');
-    const first = pages[0]?.clientHeight || 0;
-    const second = pages[1]?.clientHeight || 0;
-    scrollLimit = first + second * 0.25;
+    const first = measureHeight(pages[0]);
+    const second = measureHeight(pages[1]);
+    const nextLimit = first + second * 0.25;
+    scrollLimit = nextLimit;
+
+    if (isLocked) {
+      if (resourceScroll.scrollTop + 1 < scrollLimit) {
+        updateLockState(false);
+      } else {
+        resourceScroll.scrollTop = scrollLimit;
+      }
+    }
   };
 
-  const lockScroll = () => {
-    resourceScroll.classList.add('locked');
-    overlay?.classList.add('active');
-  };
+  pages.forEach(page => {
+    if (!page) return;
+    if (!page.complete) {
+      page.addEventListener('load', computeLimit, { once: true });
+      page.addEventListener('error', computeLimit, { once: true });
+    }
+  });
 
   computeLimit();
 
   resourceScroll.addEventListener('scroll', () => {
-    if (resourceScroll.classList.contains('locked')) {
+    if (isLocked) {
       resourceScroll.scrollTop = scrollLimit;
       return;
     }
 
     if (resourceScroll.scrollTop >= scrollLimit) {
-      resourceScroll.scrollTop = scrollLimit;
-      lockScroll();
+      updateLockState(true);
     }
   });
 
   window.addEventListener('resize', () => {
-    const wasLocked = resourceScroll.classList.contains('locked');
+    const wasLocked = isLocked;
     computeLimit();
-    if (wasLocked) {
+    if (wasLocked && isLocked) {
       resourceScroll.scrollTop = scrollLimit;
     }
   });
