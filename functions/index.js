@@ -17,6 +17,39 @@ const CANCEL_URL = "https://buantutoring.online/cancel.html";
 const ADMIN_FIREBASE_UID = process.env.ADMIN_FIREBASE_UID || "g3RWfVUte6bvIcXXim7rvNhv4hL2";
 
 const PRICE_EVENT_TYPES = new Set(["price.created", "price.updated"]);
+const BUNDLE_PRICING_COLLECTION = "bundlePricing";
+
+const BUNDLE_SUBJECT_KEYS = [
+  "bundle_subject",
+  "bundleSubject",
+  "subject",
+  "subject_key",
+  "subjectId",
+  "subject_id",
+];
+
+const BUNDLE_SUBJECT_ID_KEYS = [
+  "bundle_subject_id",
+  "bundleSubjectId",
+  "subjectId",
+  "subject_id",
+];
+
+const BUNDLE_SUBJECT_LABEL_KEYS = [
+  "bundle_subject_label",
+  "bundleSubjectLabel",
+  "subjectLabel",
+  "label",
+];
+
+const BUNDLE_HOURS_KEYS = [
+  "bundle_hours",
+  "bundleHours",
+  "hours",
+  "bundle_tier_hours",
+  "tier_hours",
+  "bundleTier",
+];
 
 const setCors = res => {
   res.set("Access-Control-Allow-Origin", "*");
@@ -70,6 +103,127 @@ const updateSubjectsForStripePrice = async price => {
     await Promise.all(updates);
   } catch (error) {
     console.error(`Unable to sync price ${priceId} to subjects`, error);
+  }
+};
+
+const readMetadataValue = (price, keys) => {
+  if (!price || !Array.isArray(keys)) return null;
+  for (const key of keys) {
+    const metadata = price.metadata && typeof price.metadata === "object" ? price.metadata : null;
+    if (metadata && metadata[key] != null) {
+      const value = metadata[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+      if (typeof value === "number" && !Number.isNaN(value)) return value;
+    }
+  }
+  return null;
+};
+
+const readPriceMetadataValue = (price, keys) => {
+  if (!price || !Array.isArray(keys)) return null;
+  let value = readMetadataValue(price, keys);
+  if (value) return value;
+  const product = price.product && typeof price.product === "object" ? price.product : null;
+  if (product) {
+    value = readMetadataValue(product, keys);
+  }
+  return value;
+};
+
+const normaliseBundleSubjectKey = value => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return null;
+  return trimmed
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
+};
+
+const parseHoursValue = value => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const direct = Number(value.trim());
+    if (!Number.isNaN(direct)) return direct;
+    const match = value.match(/(\d+(?:\.\d+)?)/);
+    if (match) {
+      const parsed = Number(match[1]);
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+  }
+  return null;
+};
+
+const ensureExpandedPrice = async price => {
+  if (!price?.id) return price;
+  if (price.product && typeof price.product === "object" && price.product.metadata) {
+    return price;
+  }
+  try {
+    return await stripe.prices.retrieve(price.id, { expand: ["product"] });
+  } catch (error) {
+    console.warn(`Unable to expand Stripe price ${price.id}`, error);
+    return price;
+  }
+};
+
+const buildBundlePricingPayload = price => {
+  if (!price) return null;
+
+  const subjectValue = readPriceMetadataValue(price, BUNDLE_SUBJECT_KEYS);
+  const hoursValue = readPriceMetadataValue(price, BUNDLE_HOURS_KEYS);
+  if (!subjectValue || hoursValue == null) {
+    return null;
+  }
+
+  const hours = parseHoursValue(hoursValue);
+  if (!hours) return null;
+
+  const subjectIdValue = readPriceMetadataValue(price, BUNDLE_SUBJECT_ID_KEYS) || subjectValue;
+  const subjectKey = normaliseBundleSubjectKey(subjectValue) || normaliseBundleSubjectKey(subjectIdValue);
+  if (!subjectKey) return null;
+
+  const subjectId = normaliseBundleSubjectKey(subjectIdValue) || subjectKey;
+  const subjectLabel = readPriceMetadataValue(price, BUNDLE_SUBJECT_LABEL_KEYS) || subjectValue;
+  const currency = normaliseStripeCurrency(price.currency) || "AUD";
+  const unitAmount = typeof price.unit_amount === "number" ? price.unit_amount : null;
+
+  const payload = {
+    subject: subjectKey,
+    subjectId,
+    subjectLabel,
+    hours,
+    priceId: price.id,
+    unitAmount,
+    currency,
+    amount: unitAmount != null ? unitAmount / 100 : null,
+    productId: typeof price.product === "string" ? price.product : price.product?.id || null,
+    lookupKey: typeof price.lookup_key === "string" ? price.lookup_key : null,
+    active: Boolean(price.active),
+    updatedAt: new Date().toISOString(),
+  };
+
+  return payload;
+};
+
+const updateBundlePricingForStripePrice = async price => {
+  if (!price?.id) return false;
+  let payload = buildBundlePricingPayload(price);
+  if (!payload) {
+    const expanded = await ensureExpandedPrice(price);
+    payload = buildBundlePricingPayload(expanded);
+  }
+  if (!payload) return false;
+
+  const key = `${payload.subjectId || payload.subject}_${payload.hours}`;
+
+  try {
+    await db.collection(BUNDLE_PRICING_COLLECTION).doc(key).set(payload, { merge: true });
+    return true;
+  } catch (error) {
+    console.error(`Unable to update bundle pricing for price ${price.id}`, error);
+    return false;
   }
 };
 
@@ -252,7 +406,10 @@ export const handleStripeWebhook = onRequest(async (req, res) => {
 
   if (PRICE_EVENT_TYPES.has(event.type)) {
     try {
-      await updateSubjectsForStripePrice(event.data.object);
+      await Promise.all([
+        updateSubjectsForStripePrice(event.data.object),
+        updateBundlePricingForStripePrice(event.data.object),
+      ]);
     } catch (error) {
       console.error("Unable to process Stripe price event", error);
     }
@@ -374,5 +531,60 @@ export const backfillSubjectPrices = onRequest(async (req, res) => {
   } catch (error) {
     console.error("Unable to backfill subject prices", error);
     res.status(500).json({ error: "Unable to backfill subject prices." });
+  }
+});
+
+export const syncBundlePricing = onRequest(async (req, res) => {
+  setCors(res);
+
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return;
+  }
+
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  try {
+    await verifyAdminRequest(req);
+  } catch (error) {
+    const message = error.message === "Forbidden" ? "Forbidden" : "Unauthorized";
+    const status = error.message === "Forbidden" ? 403 : 401;
+    res.status(status).json({ error: message });
+    return;
+  }
+
+  try {
+    let startingAfter = null;
+    let updated = 0;
+    let inspected = 0;
+
+    do {
+      const response = await stripe.prices.list({
+        limit: 100,
+        active: true,
+        starting_after: startingAfter || undefined,
+        expand: ["data.product"],
+      });
+
+      for (const price of response.data) {
+        inspected += 1;
+        const changed = await updateBundlePricingForStripePrice(price);
+        if (changed) {
+          updated += 1;
+        }
+      }
+
+      startingAfter = response.has_more && response.data.length
+        ? response.data[response.data.length - 1].id
+        : null;
+    } while (startingAfter);
+
+    res.status(200).json({ updated, inspected });
+  } catch (error) {
+    console.error("Unable to sync bundle pricing", error);
+    res.status(500).json({ error: "Unable to sync bundle pricing." });
   }
 });
