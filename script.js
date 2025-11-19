@@ -1955,8 +1955,6 @@ runWhenReady(() => {
   const revealElements = document.querySelectorAll('.reveal-on-scroll');
   if (!revealElements.length) return;
 
-  document.documentElement.classList.add('js-reveal-ready');
-
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
