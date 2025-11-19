@@ -220,6 +220,7 @@ const PENDING_BUNDLE_KEY = "pendingBundle";
 const STRIPE_PUBLISHABLE_KEY = "pk_live_51SJDOtF9Dbt33lFIbAqcbH9jfcTMyssD1VXIcIbS4ybhWIPYkrtzhywDBijTUHbzmhXlXIr8YmerGPHvlEyzvuC200RIpQC4EY";
 const FUNCTIONS_BASE_URL = "https://us-central1-buantutoring-2d3e9.cloudfunctions.net";
 const CREATE_SESSION_ENDPOINT = `${FUNCTIONS_BASE_URL}/createCheckoutSession`;
+const BACKFILL_SUBJECT_PRICES_ENDPOINT = `${FUNCTIONS_BASE_URL}/backfillSubjectPrices`;
 
 let stripeClientPromise = null;
 const getStripeClient = async () => {
@@ -241,36 +242,42 @@ const DEFAULT_SUBJECT_OPTIONS = [
     label: "Chemistry",
     price: 50,
     priceId: "price_1SOJWvF9Dbt33lFImPMXRFLU",
+    currency: "AUD",
   },
   {
     value: "english",
     label: "English",
     price: 40,
     priceId: "price_1SOJXBF9Dbt33lFInArwfsAC",
+    currency: "AUD",
   },
   {
     value: "grade-7-9",
     label: "Grade 7–9",
     price: 35,
     priceId: "price_1SOJXeF9Dbt33lFIwFdfcfPz",
+    currency: "AUD",
   },
   {
     value: "mathematical-methods",
     label: "Mathematical Methods",
     price: 55,
     priceId: "price_1SOJVsF9Dbt33lFIpgloVwN3",
+    currency: "AUD",
   },
   {
     value: "physics",
     label: "Physics",
     price: 50,
     priceId: "price_1SOJWCF9Dbt33lFIXZPB1rv7",
+    currency: "AUD",
   },
   {
     value: "specialist-mathematics",
     label: "Specialist Mathematics",
     price: 60,
     priceId: "price_1SOJVWF9Dbt33lFIUiaiE8tO",
+    currency: "AUD",
   },
 ];
 
@@ -330,11 +337,15 @@ const subjectService = (() => {
       : id;
     const priceId = typeof data?.priceId === "string" ? data.priceId : "";
     const price = typeof data?.price === "number" ? data.price : null;
+    const currency = typeof data?.currency === "string" && data.currency.trim()
+      ? data.currency.trim().toUpperCase()
+      : "AUD";
     return {
       value: id,
       label,
       price,
       priceId,
+      currency,
     };
   };
 
@@ -666,6 +677,38 @@ const requireAuthForBooking = () => {
   }
   redirectToSignIn();
   return false;
+};
+
+let subjectPriceBackfillPromise = null;
+const requestSubjectPriceBackfill = async user => {
+  if (!user || typeof user.getIdToken !== "function") {
+    return null;
+  }
+  if (subjectPriceBackfillPromise) {
+    return subjectPriceBackfillPromise;
+  }
+  subjectPriceBackfillPromise = (async () => {
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(BACKFILL_SUBJECT_PRICES_ENDPOINT, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(body || `Request failed with status ${response.status}`);
+      }
+      return await response.json().catch(() => ({}));
+    } catch (error) {
+      console.warn("Unable to request subject price backfill", error);
+      return null;
+    } finally {
+      subjectPriceBackfillPromise = null;
+    }
+  })();
+  return subjectPriceBackfillPromise;
 };
 
 const normaliseAvailabilityDay = source => {
@@ -1803,6 +1846,8 @@ runWhenReady(() => {
       setError("You do not have permission to view this page.");
       return;
     }
+
+    requestSubjectPriceBackfill(user).catch(() => {});
 
     const bookingsQuery = query(collection(firestore, "bookings"), orderBy("createdAt", "desc"));
     bookingsUnsubscribe = onSnapshot(bookingsQuery, snapshot => {
@@ -3160,7 +3205,7 @@ runWhenReady(async () => {
 
       const text = document.createElement("span");
       if (typeof option.price === "number") {
-        text.textContent = `${option.label} (${formatCurrency(option.price, "AUD")})`;
+        text.textContent = `${option.label} (${formatCurrency(option.price, option.currency || "AUD")})`;
       } else {
         text.textContent = option.label;
       }
@@ -3202,6 +3247,7 @@ runWhenReady(async () => {
         subject: subjectOption?.label || subjectId,
         price: subjectOption?.price ?? null,
         priceId: subjectOption?.priceId || "",
+        currency: subjectOption?.currency || "AUD",
       };
     });
 
@@ -3221,7 +3267,7 @@ runWhenReady(async () => {
     const pendingBooking = {
       sessions: validSessions,
       totalAmount,
-      currency: "AUD",
+      currency: primarySession?.currency || "AUD",
       date: primarySession?.date || "",
       time: primarySession?.time || "",
       subject: primarySession?.subject || "",
@@ -3276,7 +3322,9 @@ runWhenReady(() => {
     }
 
     const details = Array.from(selectedBundles.values()).map(bundle => {
-      const priceText = typeof bundle.price === "number" ? formatCurrency(bundle.price) : "";
+      const priceText = typeof bundle.price === "number"
+        ? formatCurrency(bundle.price, bundle.currency || "AUD")
+        : "";
       return `${bundle.subjectLabel} (${bundle.hours}h) ${priceText}`.trim();
     });
 
