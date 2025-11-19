@@ -2387,6 +2387,7 @@ runWhenReady(() => {
 
   const weekdaysContainer = adminCalendar.querySelector("[data-admin-calendar-weekdays]");
   const grid = adminCalendar.querySelector("[data-admin-calendar-grid]");
+  const helper = adminCalendar.querySelector("[data-admin-calendar-helper]");
 
   if (!weekdaysContainer || !grid) return;
 
@@ -2398,6 +2399,13 @@ runWhenReady(() => {
     el.textContent = label;
     weekdaysContainer.appendChild(el);
   });
+
+  const helperDefaultText = helper?.textContent?.trim() || "";
+  const setHelperMessage = message => {
+    if (!helper) return;
+    helper.textContent = message || helperDefaultText;
+    helper.dataset.status = message && message !== helperDefaultText ? "error" : "";
+  };
 
   grid.innerHTML = "";
   const startDate = new Date();
@@ -2411,14 +2419,26 @@ runWhenReady(() => {
     day: "numeric",
   });
 
+  const dayCells = new Map();
+
+  const formatDateKey = date => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   for (let index = 0; index < totalDays; index += 1) {
     const date = new Date(startDate);
     date.setDate(startDate.getDate() + index);
 
+    const iso = formatDateKey(date);
     const dayCell = document.createElement("div");
     dayCell.className = "calendar-day";
     dayCell.textContent = String(date.getDate());
     const label = accessibleFormatter.format(date);
+    dayCell.dataset.date = iso;
+    dayCell.dataset.label = label;
     dayCell.setAttribute("aria-label", label);
     dayCell.title = label;
 
@@ -2427,7 +2447,73 @@ runWhenReady(() => {
     }
 
     grid.appendChild(dayCell);
+    dayCells.set(iso, dayCell);
   }
+
+  const describeDay = dayMap => {
+    if (!dayMap) {
+      return { unavailable: 0, message: "All slots available." };
+    }
+    let unavailable = 0;
+    TIME_SLOT_VALUES.forEach(timeKey => {
+      if (dayMap[timeKey] === false) {
+        unavailable += 1;
+      }
+    });
+    if (unavailable === 0) {
+      return { unavailable: 0, message: "All slots available." };
+    }
+    if (unavailable === TIME_SLOT_VALUES.length) {
+      return { unavailable, message: "No slots available." };
+    }
+    const availableCount = TIME_SLOT_VALUES.length - unavailable;
+    return { unavailable, message: `${availableCount} available · ${unavailable} unavailable.` };
+  };
+
+  const defaultErrorMessage = "Real-time availability is currently unavailable. Please try again later.";
+
+  const updateCalendarState = state => {
+    const data = state?.data && typeof state.data === "object" ? state.data : {};
+    const hasError = Boolean(state?.error);
+    const errorMessage = hasError
+      ? (typeof state.error?.message === "string" && state.error.message.trim()
+        ? state.error.message.trim()
+        : defaultErrorMessage)
+      : "";
+
+    setHelperMessage(hasError ? errorMessage : helperDefaultText);
+
+    dayCells.forEach((cell, dateKey) => {
+      const baseLabel = cell.dataset.label || cell.textContent || "";
+      cell.classList.remove("calendar-day--has-unavailable", "calendar-day--fully-unavailable");
+      let message = "All slots available.";
+      if (hasError) {
+        message = errorMessage;
+      } else {
+        const summary = describeDay(data[dateKey]);
+        message = summary.message;
+        if (summary.unavailable === TIME_SLOT_VALUES.length) {
+          cell.classList.add("calendar-day--fully-unavailable");
+        } else if (summary.unavailable > 0) {
+          cell.classList.add("calendar-day--has-unavailable");
+        }
+      }
+      const label = baseLabel ? `${baseLabel} – ${message}` : message;
+      cell.setAttribute("aria-label", label);
+      cell.title = message;
+    });
+  };
+
+  let availabilityUnsubscribe = null;
+  availabilityService.ensureLoaded().catch(() => {});
+  availabilityUnsubscribe = availabilityService.subscribe(updateCalendarState);
+
+  window.addEventListener("beforeunload", () => {
+    if (typeof availabilityUnsubscribe === "function") {
+      availabilityUnsubscribe();
+      availabilityUnsubscribe = null;
+    }
+  });
 });
 
 runWhenReady(() => {
