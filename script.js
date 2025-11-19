@@ -38,77 +38,180 @@ const firestore = getFirestore(app);
 
 const ADMIN_FIREBASE_UID = "g3RWfVUte6bvIcXXim7rvNhv4hL2";
 
-// Buttons (make sure these exist in your HTML)
-const signupBtn = document.getElementById("signup");
-const loginBtn = document.getElementById("login");
-const logoutBtn = document.getElementById("logout");
-const statusText = document.getElementById("user-status");
+const AUTH_STORAGE_KEY = "buan.authSession";
 
-signupBtn?.addEventListener("click", async () => {
-  const email = prompt("Email:");
-  const pass = prompt("Password:");
-  if (!email || !pass) return;
-  try {
-    await authClient.signUp({ email, password: pass });
-  } catch (error) {
-    alert(error.message);
-  }
-});
+const authClient = (() => {
+  const listeners = new Set();
+  let authState = { token: null, user: null };
 
-loginBtn?.addEventListener("click", async () => {
-  const email = prompt("Email:");
-  const pass = prompt("Password:");
-  if (!email || !pass) return;
-  try {
-    await authClient.signIn({ email, password: pass });
-  } catch (error) {
-    alert(error.message);
-  }
-});
+  const mapFirebaseUser = user => {
+    if (!user) return null;
+    return {
+      id: user.uid,
+      uid: user.uid,
+      email: user.email || "",
+      name: user.displayName || "",
+      phoneNumber: user.phoneNumber || "",
+    };
+  };
 
-logoutBtn?.addEventListener("click", async () => {
-  try {
-    await authClient.signOut();
-  } catch (error) {
-    alert(error.message);
-  }
-});
+  const parseStoredState = value => {
+    if (!value) return { token: null, user: null };
+    try {
+      const parsed = JSON.parse(value);
+      if (!parsed || typeof parsed !== "object") return { token: null, user: null };
+      const token = typeof parsed.token === "string" ? parsed.token : null;
+      const user = parsed.user && typeof parsed.user === "object" ? parsed.user : null;
+      return { token, user };
+    } catch (error) {
+      console.warn("Unable to parse stored auth session", error);
+      return { token: null, user: null };
+    }
+  };
 
-// ---------- Sign Up ----------
-const signupForm = document.querySelector('[data-auth-form="sign-up"]');
-if (signupForm) {
-  signupForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('signup-email').value;
-    const pass = document.getElementById('signup-password').value;
+  const readInitialState = () => {
+    try {
+      const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (!raw) return;
+      authState = parseStoredState(raw);
+    } catch (error) {
+      console.warn("Unable to read stored auth session", error);
+    }
+  };
+
+  const persistState = () => {
+    try {
+      if (!authState.token && !authState.user) {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      } else {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authState));
+      }
+    } catch (error) {
+      console.warn("Unable to persist auth session", error);
+    }
+  };
+
+  const notify = () => {
+    listeners.forEach(listener => {
+      try {
+        listener({ ...authState });
+      } catch (error) {
+        console.error("Auth listener error", error);
+      }
+    });
+  };
+
+  const setState = nextState => {
+    const nextUser = nextState.user && typeof nextState.user === "object"
+      ? { ...nextState.user }
+      : null;
+    authState = { token: nextState.token ?? null, user: nextUser };
+    persistState();
+    notify();
+  };
+
+  const syncFromFirebaseUser = async firebaseUser => {
+    if (!firebaseUser) {
+      const session = { token: null, user: null };
+      setState(session);
+      return session;
+    }
 
     try {
-      await authClient.signUp({ email, password: pass });
-      alert('Account created successfully!');
-      window.location.href = 'booknow.html';
+      const token = await firebaseUser.getIdToken();
+      const session = { token, user: mapFirebaseUser(firebaseUser) };
+      setState(session);
+      return session;
     } catch (error) {
-      alert(error.message);
+      console.warn("Unable to read Firebase ID token", error);
+      const session = { token: null, user: mapFirebaseUser(firebaseUser) };
+      setState(session);
+      return session;
     }
-  });
-}
+  };
 
-// ---------- Sign In ----------
-const signinForm = document.querySelector('[data-auth-form="sign-in"]');
-if (signinForm) {
-  signinForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('signin-email').value;
-    const pass = document.getElementById('signin-password').value;
+  const request = async (action, payload) => {
+    const email = payload?.email;
+    const password = payload?.password;
+    if (!email || !password) {
+      throw new Error("Enter a valid email address and password to continue.");
+    }
 
     try {
-      await authClient.signIn({ email, password: pass });
-      alert('Signed in successfully!');
-      window.location.href = 'booknow.html';
+      let credential;
+      if (action === "signup") {
+        credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+        const name = typeof payload?.name === "string" && payload.name.trim() ? payload.name.trim() : "";
+        if (name) {
+          try {
+            await updateProfile(credential.user, { displayName: name });
+          } catch (error) {
+            console.warn("Unable to update Firebase profile", error);
+          }
+        }
+      } else if (action === "signin") {
+        credential = await signInWithEmailAndPassword(firebaseAuth, email, password);
+      } else {
+        throw new Error("Unsupported authentication request.");
+      }
+
+      return await syncFromFirebaseUser(credential.user);
     } catch (error) {
-      alert(error.message);
+      const message = error && typeof error.message === "string" && error.message.trim()
+        ? error.message.trim()
+        : "Unable to complete the request. Please try again.";
+      throw new Error(message);
     }
+  };
+
+  const readInitialUser = () => {
+    if (authState.token || authState.user) {
+      notify();
+    }
+  };
+
+  const signUp = async credentials => {
+    return request("signup", credentials);
+  };
+
+  const signIn = async credentials => {
+    return request("signin", credentials);
+  };
+
+  const signOut = async () => {
+    try {
+      await firebaseSignOut(firebaseAuth);
+      return await syncFromFirebaseUser(null);
+    } catch (error) {
+      await syncFromFirebaseUser(null);
+      throw error;
+    }
+  };
+
+  const getCurrentUser = () => authState.user;
+  const getSessionToken = () => authState.token;
+
+  const subscribe = callback => {
+    if (typeof callback !== "function") return () => {};
+    listeners.add(callback);
+    callback({ ...authState });
+    return () => listeners.delete(callback);
+  };
+
+  readInitialState();
+  readInitialUser();
+
+  onAuthStateChanged(firebaseAuth, user => {
+    syncFromFirebaseUser(user).catch(error => {
+      console.error("Unable to synchronise Firebase auth state", error);
+    });
   });
-}
+
+  return { signUp, signIn, signOut, getCurrentUser, getSessionToken, subscribe };
+})();
+
+
+
 
 /*not firebase*/
 const BOOKING_STORAGE_KEY = "buan.bookingState";
@@ -804,188 +907,10 @@ const availabilityService = (() => {
   };
 })();
 
-const AUTH_STORAGE_KEY = "buan.authSession";
 
-const authClient = (() => {
-  const listeners = new Set();
-  let authState = { token: null, user: null };
-
-  const mapFirebaseUser = user => {
-    if (!user) return null;
-    return {
-      id: user.uid,
-      uid: user.uid,
-      email: user.email || "",
-      name: user.displayName || "",
-      phoneNumber: user.phoneNumber || "",
-    };
-  };
-
-  const parseStoredState = value => {
-    if (!value) return { token: null, user: null };
-    try {
-      const parsed = JSON.parse(value);
-      if (!parsed || typeof parsed !== "object") return { token: null, user: null };
-      const token = typeof parsed.token === "string" ? parsed.token : null;
-      const user = parsed.user && typeof parsed.user === "object" ? parsed.user : null;
-      return { token, user };
-    } catch (error) {
-      console.warn("Unable to parse stored auth session", error);
-      return { token: null, user: null };
-    }
-  };
-
-  const readInitialState = () => {
-    try {
-      const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-      if (!raw) return;
-      authState = parseStoredState(raw);
-    } catch (error) {
-      console.warn("Unable to read stored auth session", error);
-    }
-  };
-
-  const persistState = () => {
-    try {
-      if (!authState.token && !authState.user) {
-        localStorage.removeItem(AUTH_STORAGE_KEY);
-      } else {
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authState));
-      }
-    } catch (error) {
-      console.warn("Unable to persist auth session", error);
-    }
-  };
-
-  const notify = () => {
-    listeners.forEach(listener => {
-      try {
-        listener({ ...authState });
-      } catch (error) {
-        console.error("Auth listener error", error);
-      }
-    });
-  };
-
-  const setState = nextState => {
-    const nextUser = nextState.user && typeof nextState.user === "object"
-      ? { ...nextState.user }
-      : null;
-    authState = { token: nextState.token ?? null, user: nextUser };
-    persistState();
-    notify();
-  };
-
-  const syncFromFirebaseUser = async firebaseUser => {
-    if (!firebaseUser) {
-      const session = { token: null, user: null };
-      setState(session);
-      return session;
-    }
-
-    try {
-      const token = await firebaseUser.getIdToken();
-      const session = { token, user: mapFirebaseUser(firebaseUser) };
-      setState(session);
-      return session;
-    } catch (error) {
-      console.warn("Unable to read Firebase ID token", error);
-      const session = { token: null, user: mapFirebaseUser(firebaseUser) };
-      setState(session);
-      return session;
-    }
-  };
-
-  const request = async (action, payload) => {
-    const email = payload?.email;
-    const password = payload?.password;
-    if (!email || !password) {
-      throw new Error("Enter a valid email address and password to continue.");
-    }
-
-    try {
-      let credential;
-      if (action === "signup") {
-        credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
-        const name = typeof payload?.name === "string" && payload.name.trim() ? payload.name.trim() : "";
-        if (name) {
-          try {
-            await updateProfile(credential.user, { displayName: name });
-          } catch (error) {
-            console.warn("Unable to update Firebase profile", error);
-          }
-        }
-      } else if (action === "signin") {
-        credential = await signInWithEmailAndPassword(firebaseAuth, email, password);
-      } else {
-        throw new Error("Unsupported authentication request.");
-      }
-
-      return await syncFromFirebaseUser(credential.user);
-    } catch (error) {
-      const message = error && typeof error.message === "string" && error.message.trim()
-        ? error.message.trim()
-        : "Unable to complete the request. Please try again.";
-      throw new Error(message);
-    }
-  };
-
-  const readInitialUser = () => {
-    if (authState.token || authState.user) {
-      notify();
-    }
-  };
-
-  const signUp = async credentials => {
-    return request("signup", credentials);
-  };
-
-  const signIn = async credentials => {
-    return request("signin", credentials);
-  };
-
-  const signOut = async () => {
-    try {
-      await firebaseSignOut(firebaseAuth);
-      return await syncFromFirebaseUser(null);
-    } catch (error) {
-      await syncFromFirebaseUser(null);
-      throw error;
-    }
-  };
-
-  const getCurrentUser = () => authState.user;
-  const getSessionToken = () => authState.token;
-
-  const subscribe = callback => {
-    if (typeof callback !== "function") return () => {};
-    listeners.add(callback);
-    callback({ ...authState });
-    return () => listeners.delete(callback);
-  };
-
-  readInitialState();
-  readInitialUser();
-
-  onAuthStateChanged(firebaseAuth, user => {
-    syncFromFirebaseUser(user).catch(error => {
-      console.error("Unable to synchronise Firebase auth state", error);
-    });
-  });
-
-  return { signUp, signIn, signOut, getCurrentUser, getSessionToken, subscribe };
-})();
 
 const AUTH_DEFAULT_REDIRECT = "booknow.html";
 const AUTH_SIGN_OUT_REDIRECT = "index.html";
-
-if (statusText) {
-  authClient.subscribe(({ user }) => {
-    statusText.textContent = user
-      ? `Logged in as ${user.email || "student"}`
-      : "Not logged in.";
-  });
-}
 
 const ensureAuthMessageElement = form => {
   let message = form.querySelector("[data-auth-message]");
@@ -2027,22 +1952,78 @@ runWhenReady(() => {
 });
 
 runWhenReady(() => {
-  const revealElements = document.querySelectorAll(".review, .about");
+  const revealElements = document.querySelectorAll('.reveal-on-scroll');
+  if (!revealElements.length) return;
+
+  document.documentElement.classList.add('js-reveal-ready');
+
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
-        entry.target.classList.add("visible");
+        entry.target.classList.add('is-visible');
         observer.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.2 });
+  }, { threshold: 0.2, rootMargin: '0px 0px -60px 0px' });
 
-  revealElements.forEach(el => observer.observe(el));
+  revealElements.forEach(element => observer.observe(element));
+});
 
-  // For elements already visible at load
-  revealElements.forEach(el => {
-    const rect = el.getBoundingClientRect();
-    if (rect.top < window.innerHeight) el.classList.add("visible");
+runWhenReady(() => {
+  const parallaxSections = document.querySelectorAll('[data-parallax]');
+  if (!parallaxSections.length) return;
+
+  const updateParallax = () => {
+    const scrollY = window.scrollY;
+    parallaxSections.forEach(section => {
+      const speed = 0.1;
+      section.style.backgroundPositionY = `${-scrollY * speed}px`;
+    });
+  };
+
+  updateParallax();
+  window.addEventListener('scroll', updateParallax, { passive: true });
+});
+
+runWhenReady(() => {
+  const resourceScroll = document.querySelector('[data-resource-scroll]');
+  if (!resourceScroll) return;
+
+  const overlay = document.querySelector('[data-resource-overlay]');
+  let scrollLimit = 0;
+
+  const computeLimit = () => {
+    const pages = resourceScroll.querySelectorAll('.resource-page');
+    const first = pages[0]?.clientHeight || 0;
+    const second = pages[1]?.clientHeight || 0;
+    scrollLimit = first + second * 0.25;
+  };
+
+  const lockScroll = () => {
+    resourceScroll.classList.add('locked');
+    overlay?.classList.add('active');
+  };
+
+  computeLimit();
+
+  resourceScroll.addEventListener('scroll', () => {
+    if (resourceScroll.classList.contains('locked')) {
+      resourceScroll.scrollTop = scrollLimit;
+      return;
+    }
+
+    if (resourceScroll.scrollTop >= scrollLimit) {
+      resourceScroll.scrollTop = scrollLimit;
+      lockScroll();
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    const wasLocked = resourceScroll.classList.contains('locked');
+    computeLimit();
+    if (wasLocked) {
+      resourceScroll.scrollTop = scrollLimit;
+    }
   });
 });
 
