@@ -2,16 +2,21 @@ import Stripe from "stripe";
 import { onRequest } from "firebase-functions/v2/https";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 
 initializeApp();
 
 const db = getFirestore();
+const adminAuth = getAuth();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2024-06-20",
 });
 
 const SUCCESS_URL = "https://buantutoring.online/success.html";
 const CANCEL_URL = "https://buantutoring.online/cancel.html";
+const ADMIN_FIREBASE_UID = process.env.ADMIN_FIREBASE_UID || "g3RWfVUte6bvIcXXim7rvNhv4hL2";
+
+const PRICE_EVENT_TYPES = new Set(["price.created", "price.updated"]);
 
 const setCors = res => {
   res.set("Access-Control-Allow-Origin", "*");
@@ -24,6 +29,64 @@ const trimMetadataValue = value => {
     return "";
   }
   return value.length > 500 ? value.slice(0, 500) : value;
+};
+
+const normaliseStripeCurrency = currency => {
+  if (typeof currency !== "string") return null;
+  const trimmed = currency.trim();
+  return trimmed ? trimmed.toUpperCase() : null;
+};
+
+const buildPriceUpdatePayload = price => {
+  if (!price || typeof price !== "object") return null;
+  const payload = {};
+  if (typeof price.unit_amount === "number") {
+    payload.price = price.unit_amount / 100;
+  }
+  const currency = normaliseStripeCurrency(price.currency);
+  if (currency) {
+    payload.currency = currency;
+  }
+  return Object.keys(payload).length ? payload : null;
+};
+
+const updateSubjectsForStripePrice = async price => {
+  const priceId = price?.id;
+  if (!priceId) return;
+
+  const updatePayload = buildPriceUpdatePayload(price);
+  if (!updatePayload) return;
+
+  try {
+    const snapshot = await db.collection("subjects").where("priceId", "==", priceId).get();
+    if (snapshot.empty) {
+      return;
+    }
+    const updates = snapshot.docs.map(docSnapshot =>
+      docSnapshot.ref.update(updatePayload).catch(error => {
+        console.error(`Unable to update subject ${docSnapshot.id} for price ${priceId}`, error);
+      })
+    );
+    await Promise.all(updates);
+  } catch (error) {
+    console.error(`Unable to sync price ${priceId} to subjects`, error);
+  }
+};
+
+const verifyAdminRequest = async req => {
+  const header = req.headers["authorization"] || req.headers["Authorization"] || "";
+  if (typeof header !== "string" || !header.startsWith("Bearer ")) {
+    throw new Error("Missing credentials");
+  }
+  const token = header.slice(7).trim();
+  if (!token) {
+    throw new Error("Missing credentials");
+  }
+  const decoded = await adminAuth.verifyIdToken(token);
+  if (decoded?.uid !== ADMIN_FIREBASE_UID) {
+    throw new Error("Forbidden");
+  }
+  return decoded;
 };
 
 const summariseSessions = sessions => {
@@ -187,6 +250,14 @@ export const handleStripeWebhook = onRequest(async (req, res) => {
     return;
   }
 
+  if (PRICE_EVENT_TYPES.has(event.type)) {
+    try {
+      await updateSubjectsForStripePrice(event.data.object);
+    } catch (error) {
+      console.error("Unable to process Stripe price event", error);
+    }
+  }
+
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
     const metadata = session.metadata || {};
@@ -243,4 +314,65 @@ export const handleStripeWebhook = onRequest(async (req, res) => {
   }
 
   res.status(200).send("ok");
+});
+
+export const backfillSubjectPrices = onRequest(async (req, res) => {
+  setCors(res);
+
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return;
+  }
+
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  try {
+    await verifyAdminRequest(req);
+  } catch (error) {
+    const message = error.message === "Forbidden" ? "Forbidden" : "Unauthorized";
+    const status = error.message === "Forbidden" ? 403 : 401;
+    res.status(status).json({ error: message });
+    return;
+  }
+
+  try {
+    const snapshot = await db.collection("subjects").get();
+    if (snapshot.empty) {
+      res.status(200).json({ updated: 0, total: 0 });
+      return;
+    }
+
+    let updated = 0;
+    let skipped = 0;
+
+    for (const docSnapshot of snapshot.docs) {
+      const data = docSnapshot.data();
+      const priceId = typeof data?.priceId === "string" ? data.priceId : "";
+      if (!priceId) {
+        skipped += 1;
+        continue;
+      }
+      try {
+        const price = await stripe.prices.retrieve(priceId);
+        const payload = buildPriceUpdatePayload(price);
+        if (!payload) {
+          skipped += 1;
+          continue;
+        }
+        await docSnapshot.ref.update(payload);
+        updated += 1;
+      } catch (error) {
+        console.error(`Unable to backfill price for subject ${docSnapshot.id}`, error);
+        skipped += 1;
+      }
+    }
+
+    res.status(200).json({ updated, skipped, total: snapshot.size });
+  } catch (error) {
+    console.error("Unable to backfill subject prices", error);
+    res.status(500).json({ error: "Unable to backfill subject prices." });
+  }
 });
