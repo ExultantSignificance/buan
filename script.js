@@ -541,220 +541,115 @@ const formatDisplayDate = iso => {
   return formatter.format(date);
 };
 
-const normaliseCurrencyCode = value => {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed ? trimmed.toUpperCase() : null;
+const BUNDLE_TIERS = [10, 20, 40];
+
+const DEFAULT_BUNDLE_PRICING = {
+  specialists: {
+    label: "Specialist Mathematics",
+    subjectId: "specialist-mathematics",
+    baseRate: 60,
+    priceIds: {
+      10: "price_1SOJBuF9Dbt33lFIRT2wiwfj",
+      20: "price_1SOJLpF9Dbt33lFIGiQzVRWm",
+      40: "price_1SOJP1F9Dbt33lFIWb9x0Uuk",
+    },
+  },
+  methods: {
+    label: "Mathematical Methods",
+    subjectId: "mathematical-methods",
+    baseRate: 55,
+    priceIds: {
+      10: "price_1SOJJSF9Dbt33lFIYazUes2Q",
+      20: "price_1SOJMcF9Dbt33lFIWQ7DGvKV",
+      40: "price_1SOJPYF9Dbt33lFI69irabJI",
+    },
+  },
+  chemistry: {
+    label: "Chemistry",
+    subjectId: "chemistry",
+    baseRate: 50,
+    priceIds: {
+      10: "price_1SOJKYF9Dbt33lFI2pD05mja",
+      20: "price_1SOJNwF9Dbt33lFIHmYoiZq2",
+      40: "price_1SOJQOF9Dbt33lFI7zHDvUGW",
+    },
+  },
+  physics: {
+    label: "Physics",
+    subjectId: "physics",
+    baseRate: 50,
+    priceIds: {
+      10: "price_1SOJK8F9Dbt33lFIyKsRZx3R",
+      20: "price_1SOJN1F9Dbt33lFIbO0GhpX4",
+      40: "price_1SOJQ1F9Dbt33lFI0y3lC2nG",
+    },
+  },
+  "general-english": {
+    label: "General English",
+    subjectId: "english",
+    baseRate: 40,
+    priceIds: {
+      10: "price_1SOJLHF9Dbt33lFIJ6HFTJ9K",
+      20: "price_1SOJOLF9Dbt33lFIHHCjGgWA",
+      40: "price_1SOJQoF9Dbt33lFIb8TyV3pJ",
+    },
+  },
+  "grade-7-9": {
+    label: "Grade 7–9",
+    subjectId: "grade-7-9",
+    baseRate: 35,
+    priceIds: {
+      10: "price_1SOJRhF9Dbt33lFI7juqs1Ik",
+      20: "price_1SOJSCF9Dbt33lFIFgd1nyM7",
+      40: "price_1SOJSjF9Dbt33lFIUgAcNBaE",
+    },
+  },
 };
 
-const normaliseBundleSubjectKey = value => {
-  if (typeof value !== "string") return "";
-  const trimmed = value.trim().toLowerCase();
-  if (!trimmed) return "";
-  return trimmed.replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
+const calculateBundlePrice = (hours, baseRate) => {
+  const discount = hours === 10 ? 0.05 : hours === 20 ? 0.1 : hours === 40 ? 0.2 : 0;
+  return baseRate * hours * (1 - discount);
 };
 
-const parseNumberValue = value => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value.trim());
-    if (!Number.isNaN(parsed)) {
-      return parsed;
-    }
-  }
-  return null;
-};
+const buildBundleCatalog = () => {
+  const config = typeof window !== "undefined" && window.BUAN_BUNDLE_PRICING
+    ? window.BUAN_BUNDLE_PRICING
+    : DEFAULT_BUNDLE_PRICING;
 
-const parseBundleHoursValue = value => {
-  const parsed = parseNumberValue(value);
-  if (parsed != null) {
-    return parsed;
-  }
-  if (typeof value === "string" && value.trim()) {
-    const match = value.match(/(\d+(?:\.\d+)?)/);
-    if (match) {
-      const fallback = Number(match[1]);
-      if (!Number.isNaN(fallback)) return fallback;
-    }
-  }
-  return null;
-};
+  const catalog = new Map();
 
-const bundlePricingService = (() => {
-  let catalog = null;
-  let loadPromise = null;
+  Object.entries(config || {}).forEach(([subject, data]) => {
+    if (!subject || !data) return;
+    const label = typeof data.label === "string" && data.label.trim()
+      ? data.label.trim()
+      : subject;
+    const baseRate = typeof data.baseRate === "number" ? data.baseRate : 0;
+    const subjectId = typeof data.subjectId === "string" ? data.subjectId : subject;
+    const priceIds = data.priceIds && typeof data.priceIds === "object" ? data.priceIds : {};
 
-  const buildCatalogFromRecords = records => {
-    const map = new Map();
-    if (!Array.isArray(records)) {
-      return map;
-    }
-
-    records.forEach(record => {
-      if (!record || typeof record !== "object") return;
-
-      const subjectKey = normaliseBundleSubjectKey(record.subject || record.subjectKey || record.subjectId || "");
-      if (!subjectKey) return;
-      const hours = parseBundleHoursValue(record.hours ?? record.quantity ?? record.tier);
-      if (!hours) return;
-      const priceId = typeof record.priceId === "string" ? record.priceId.trim() : "";
-      if (!priceId) return;
-
-      const subjectId = normaliseBundleSubjectKey(record.subjectId || record.subject || subjectKey) || subjectKey;
-      const subjectLabel = typeof record.subjectLabel === "string" && record.subjectLabel.trim()
-        ? record.subjectLabel.trim()
-        : (typeof record.label === "string" && record.label.trim() ? record.label.trim() : subjectId);
-      const currency = normaliseCurrencyCode(record.currency) || "AUD";
-      const priceAmount = parseNumberValue(record.price);
-      const altAmount = parseNumberValue(record.amount);
-      const unitAmount = parseNumberValue(record.unitAmount);
-      const amount = priceAmount ?? altAmount ?? (unitAmount != null ? unitAmount / 100 : null);
-
-      if (!map.has(subjectKey)) {
-        map.set(subjectKey, {
-          subjectKey,
-          subjectId,
-          label: subjectLabel,
-          currency,
-          tiers: new Map(),
-        });
-      }
-
-      const entry = map.get(subjectKey);
-      entry.subjectId = subjectId || entry.subjectId;
-      entry.label = subjectLabel || entry.label;
-      entry.currency = currency || entry.currency;
-
-      entry.tiers.set(hours, {
+    const tiers = new Map();
+    BUNDLE_TIERS.forEach(hours => {
+      const priceId = typeof priceIds[hours] === "string" ? priceIds[hours] : "";
+      tiers.set(hours, {
         hours,
         priceId,
-        price: typeof amount === "number" ? amount : null,
-        quantity: parseBundleHoursValue(record.quantity) || hours,
-        currency,
+        price: calculateBundlePrice(hours, baseRate),
+        quantity: hours,
       });
     });
 
-    return map;
-  };
-
-  const convertInjectedObjectToRecords = injected => {
-    if (!injected || typeof injected !== "object") return null;
-    const records = [];
-    Object.entries(injected).forEach(([subjectKey, value]) => {
-      if (!value || typeof value !== "object") return;
-      const base = {
-        subject: subjectKey,
-        subjectId: value.subjectId,
-        subjectLabel: value.label || value.subjectLabel,
-        currency: value.currency,
-      };
-
-      if (Array.isArray(value)) {
-        value.forEach(entry => {
-          if (!entry || typeof entry !== "object") return;
-          records.push({ ...base, ...entry });
-        });
-        return;
-      }
-
-      if (Array.isArray(value.tiers)) {
-        value.tiers.forEach(entry => {
-          if (!entry || typeof entry !== "object") return;
-          records.push({ ...base, ...entry });
-        });
-        return;
-      }
-
-      if (value.tiers && typeof value.tiers === "object") {
-        Object.entries(value.tiers).forEach(([hoursKey, entry]) => {
-          if (!entry || typeof entry !== "object") return;
-          records.push({ ...base, ...entry, hours: entry.hours ?? hoursKey });
-        });
-        return;
-      }
+    catalog.set(subject, {
+      label,
+      subjectId,
+      tiers,
+      currency: "AUD",
     });
-    return records.length ? records : null;
-  };
+  });
 
-  const readInjectedBundleData = () => {
-    if (typeof window === "undefined") return null;
-    const injected = window.BUAN_BUNDLE_PRICING;
-    if (!injected) return null;
-    if (Array.isArray(injected)) return injected;
-    if (typeof injected === "object") {
-      if (Array.isArray(injected.records)) return injected.records;
-      if (Array.isArray(injected.data)) return injected.data;
-      const converted = convertInjectedObjectToRecords(injected);
-      if (converted && converted.length) {
-        return converted;
-      }
-    }
-    return null;
-  };
+  return catalog;
+};
 
-  const fetchBundlePricing = async () => {
-    try {
-      const snapshot = await getDocs(collection(firestore, "bundlePricing"));
-      return snapshot.docs.map(docSnapshot => ({ id: docSnapshot.id, ...docSnapshot.data() }));
-    } catch (error) {
-      console.warn("Unable to load bundle pricing from Firestore", error);
-      throw error;
-    }
-  };
-
-  const loadCatalog = async () => {
-    if (catalog) return catalog;
-    if (loadPromise) return loadPromise;
-
-    const injected = readInjectedBundleData();
-    if (Array.isArray(injected) && injected.length) {
-      catalog = buildCatalogFromRecords(injected);
-      return catalog;
-    }
-
-    loadPromise = fetchBundlePricing()
-      .then(records => {
-        catalog = buildCatalogFromRecords(records);
-        return catalog;
-      })
-      .catch(error => {
-        catalog = null;
-        throw error;
-      })
-      .finally(() => {
-        loadPromise = null;
-      });
-
-    return loadPromise;
-  };
-
-  const getSelection = (subject, hours) => {
-    if (!catalog || !catalog.size) return null;
-    const key = normaliseBundleSubjectKey(subject);
-    const entry = catalog.get(key);
-    if (!entry) return null;
-    const tier = entry.tiers.get(Number(hours));
-    if (!tier || !tier.priceId || typeof tier.price !== "number") return null;
-    return {
-      subject: entry.subjectKey || key,
-      subjectId: entry.subjectId || key,
-      subjectLabel: entry.label || entry.subjectId || key,
-      hours: tier.hours,
-      quantity: tier.quantity || tier.hours,
-      priceId: tier.priceId,
-      price: typeof tier.price === "number" ? tier.price : null,
-      currency: tier.currency || entry.currency || "AUD",
-    };
-  };
-
-  return {
-    loadCatalog,
-    getCatalogSync: () => catalog,
-    getBundleSelection: getSelection,
-  };
-})();
+const BUNDLE_CATALOG = buildBundleCatalog();
 
 const formatDisplayTime = timeValue => {
   if (!timeValue) return "";
@@ -1304,9 +1199,8 @@ runWhenReady(() => {
       if (isBundleCheckout) {
         const subjectText = entry.subjectLabel || entry.subject || "Bundle";
         const tierText = `${entry.hours || entry.quantity || ""} hours`.trim();
-        const bundleCurrency = entry.currency || currency;
         const priceText = typeof entry.price === "number"
-          ? formatCurrency(entry.price, bundleCurrency)
+          ? formatCurrency(entry.price, currency)
           : "";
         item.innerHTML = `
           <div class="checkout-summary__details">
@@ -1320,7 +1214,7 @@ runWhenReady(() => {
         const dateText = formatDisplayDate(entry.date);
         const timeText = formatDisplayTime(entry.time);
         const priceText = typeof entry.price === "number"
-          ? formatCurrency(entry.price, entry.currency || currency)
+          ? formatCurrency(entry.price, currency)
           : "";
         item.innerHTML = `
           <div class="checkout-summary__details">
@@ -3400,45 +3294,23 @@ runWhenReady(() => {
   if (!bundleGrid || !checkoutButton || !selectionText) return;
 
   const selectedBundles = new Map();
-  let bundleCatalog = bundlePricingService.getCatalogSync();
-  let pricingError = null;
-
-  const pricingReady = bundlePricingService.loadCatalog().then(data => {
-    bundleCatalog = data;
-    if (!data || !data.size) {
-      selectionText.textContent = "Bundle pricing is unavailable right now. Please check back soon.";
-      checkoutButton.disabled = true;
-      checkoutButton.setAttribute("aria-disabled", "true");
-    }
-    return data;
-  }).catch(error => {
-    pricingError = error;
-    console.error("Unable to load bundle pricing", error);
-    selectionText.textContent = "Unable to load bundle pricing. Please try again later.";
-    checkoutButton.disabled = true;
-    checkoutButton.setAttribute("aria-disabled", "true");
-    return null;
-  });
-
-  const ensurePricingReady = async () => {
-    if (pricingError) {
-      return false;
-    }
-    if (bundleCatalog && bundleCatalog.size) {
-      return true;
-    }
-    try {
-      const data = await pricingReady;
-      bundleCatalog = data;
-      return Boolean(data && data.size);
-    } catch (error) {
-      return false;
-    }
-  };
 
   const getBundleSelection = (subject, hours) => {
-    bundleCatalog = bundlePricingService.getCatalogSync() || bundleCatalog;
-    return bundlePricingService.getBundleSelection(subject, hours);
+    const config = BUNDLE_CATALOG.get(subject);
+    if (!config) return null;
+    const tier = config.tiers.get(Number(hours));
+    if (!tier || !tier.priceId) return null;
+
+    return {
+      subject,
+      subjectId: config.subjectId,
+      subjectLabel: config.label,
+      hours: tier.hours,
+      quantity: tier.quantity,
+      priceId: tier.priceId,
+      price: tier.price,
+      currency: config.currency || "AUD",
+    };
   };
 
   const updateSummary = () => {
@@ -3461,15 +3333,7 @@ runWhenReady(() => {
     checkoutButton.setAttribute("aria-disabled", "false");
   };
 
-  const toggleSelection = async button => {
-    const ready = await ensurePricingReady();
-    if (!ready) {
-      selectionText.textContent = "Bundle pricing is unavailable right now.";
-      checkoutButton.disabled = true;
-      checkoutButton.setAttribute("aria-disabled", "true");
-      return;
-    }
-
+  const toggleSelection = button => {
     const subject = button.dataset.subject;
     const hours = button.dataset.hours;
     if (!subject || !hours) return;
@@ -3504,16 +3368,8 @@ runWhenReady(() => {
     toggleSelection(target);
   });
 
-  checkoutButton.addEventListener("click", async () => {
+  checkoutButton.addEventListener("click", () => {
     if (checkoutButton.disabled || !selectedBundles.size) return;
-
-    const ready = await ensurePricingReady();
-    if (!ready) {
-      selectionText.textContent = "Bundle pricing is unavailable right now.";
-      checkoutButton.disabled = true;
-      checkoutButton.setAttribute("aria-disabled", "true");
-      return;
-    }
 
     const bundles = Array.from(selectedBundles.values());
     const totalAmount = bundles.reduce((total, bundle) => total + (typeof bundle.price === "number" ? bundle.price : 0), 0);
