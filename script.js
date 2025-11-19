@@ -471,10 +471,6 @@ const runWhenReady = callback => {
   }
 };
 
-runWhenReady(() => {
-  document.documentElement.classList.add("js-enabled");
-});
-
 const TIME_SLOT_VALUES = (() => {
   const values = [];
   for (let hour = 8; hour <= 18; hour++) {
@@ -1958,6 +1954,13 @@ runWhenReady(() => {
 runWhenReady(() => {
   const revealElements = document.querySelectorAll('.reveal-on-scroll');
   if (!revealElements.length) return;
+
+  if (typeof window.IntersectionObserver !== 'function') {
+    revealElements.forEach(element => element.classList.add('is-visible'));
+    return;
+  }
+
+  document.documentElement.classList.add('js-enabled');
 
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {
