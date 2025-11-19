@@ -2027,22 +2027,76 @@ runWhenReady(() => {
 });
 
 runWhenReady(() => {
-  const revealElements = document.querySelectorAll(".review, .about");
+  const revealElements = document.querySelectorAll('.reveal-on-scroll');
+  if (!revealElements.length) return;
+
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
-        entry.target.classList.add("visible");
+        entry.target.classList.add('is-visible');
         observer.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.2 });
+  }, { threshold: 0.2, rootMargin: '0px 0px -60px 0px' });
 
-  revealElements.forEach(el => observer.observe(el));
+  revealElements.forEach(element => observer.observe(element));
+});
 
-  // For elements already visible at load
-  revealElements.forEach(el => {
-    const rect = el.getBoundingClientRect();
-    if (rect.top < window.innerHeight) el.classList.add("visible");
+runWhenReady(() => {
+  const parallaxSections = document.querySelectorAll('[data-parallax]');
+  if (!parallaxSections.length) return;
+
+  const updateParallax = () => {
+    const scrollY = window.scrollY;
+    parallaxSections.forEach(section => {
+      const speed = 0.1;
+      section.style.backgroundPositionY = `${-scrollY * speed}px`;
+    });
+  };
+
+  updateParallax();
+  window.addEventListener('scroll', updateParallax, { passive: true });
+});
+
+runWhenReady(() => {
+  const resourceScroll = document.querySelector('[data-resource-scroll]');
+  if (!resourceScroll) return;
+
+  const overlay = document.querySelector('[data-resource-overlay]');
+  let scrollLimit = 0;
+
+  const computeLimit = () => {
+    const pages = resourceScroll.querySelectorAll('.resource-page');
+    const first = pages[0]?.clientHeight || 0;
+    const second = pages[1]?.clientHeight || 0;
+    scrollLimit = first + second * 0.25;
+  };
+
+  const lockScroll = () => {
+    resourceScroll.classList.add('locked');
+    overlay?.classList.add('active');
+  };
+
+  computeLimit();
+
+  resourceScroll.addEventListener('scroll', () => {
+    if (resourceScroll.classList.contains('locked')) {
+      resourceScroll.scrollTop = scrollLimit;
+      return;
+    }
+
+    if (resourceScroll.scrollTop >= scrollLimit) {
+      resourceScroll.scrollTop = scrollLimit;
+      lockScroll();
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    const wasLocked = resourceScroll.classList.contains('locked');
+    computeLimit();
+    if (wasLocked) {
+      resourceScroll.scrollTop = scrollLimit;
+    }
   });
 });
 
