@@ -533,8 +533,9 @@ main {
 }
 
 /*footer of bundles section*/
-html, body {
-  height: 100%;
+html,
+body {
+  min-height: 100%;
   margin: 0;
 }
 
@@ -949,7 +950,8 @@ header, main, footer {
   background: rgba(17, 17, 17, 0.08);
 }
 
-.admin-availability__calendar .calendar-day.calendar-day--has-unavailable::after {
+.admin-availability__calendar .calendar-day.calendar-day--has-unavailable::after,
+.admin-calendar .calendar-day.calendar-day--has-unavailable::after {
   content: "";
   position: absolute;
   bottom: 6px;
@@ -961,12 +963,14 @@ header, main, footer {
   background: #f97316;
 }
 
-.admin-availability__calendar .calendar-day.calendar-day--fully-unavailable {
+.admin-availability__calendar .calendar-day.calendar-day--fully-unavailable,
+.admin-calendar .calendar-day.calendar-day--fully-unavailable {
   background: #fee2e2;
   color: #b91c1c;
 }
 
-.admin-availability__calendar .calendar-day.calendar-day--fully-unavailable::after {
+.admin-availability__calendar .calendar-day.calendar-day--fully-unavailable::after,
+.admin-calendar .calendar-day.calendar-day--fully-unavailable::after {
   background: #ef4444;
 }
 
