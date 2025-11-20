@@ -21,6 +21,11 @@ import {
   setDoc,
   deleteField,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import {
+  getStorage,
+  ref as storageRef,
+  getDownloadURL,
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAv-v8Q_bS3GtcYAAI-3PB4XL1WJv-_shE",
@@ -35,6 +40,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(app);
 const firestore = getFirestore(app);
+const storage = getStorage(app);
 
 const ADMIN_FIREBASE_UID = "g3RWfVUte6bvIcXXim7rvNhv4hL2";
 
@@ -53,6 +59,24 @@ const authClient = (() => {
       name: user.displayName || "",
       phoneNumber: user.phoneNumber || "",
     };
+  };
+
+  const fetchUserProfile = async uid => {
+    if (!uid) return null;
+
+    try {
+      const profileSnapshot = await getDoc(doc(firestore, "users", uid));
+      if (!profileSnapshot.exists()) return null;
+
+      const data = profileSnapshot.data() || {};
+      return {
+        hasPaid: Boolean(data.hasPaid),
+        entitlement: typeof data.entitlement === "string" ? data.entitlement : "",
+      };
+    } catch (error) {
+      console.warn("Unable to load user profile", error);
+      return null;
+    }
   };
 
   const parseStoredState = value => {
@@ -110,6 +134,24 @@ const authClient = (() => {
     notify();
   };
 
+  const refreshUserProfile = async firebaseUser => {
+    const targetUser = firebaseUser || firebaseAuth.currentUser;
+    if (!targetUser) return null;
+
+    const profile = await fetchUserProfile(targetUser.uid);
+    if (!profile) return null;
+
+    const currentUser = authState.user || mapFirebaseUser(targetUser);
+    const updatedUser = {
+      ...currentUser,
+      hasPaid: Boolean(profile.hasPaid),
+      entitlement: profile.entitlement || "",
+    };
+
+    setState({ token: authState.token, user: updatedUser });
+    return updatedUser;
+  };
+
   const syncFromFirebaseUser = async firebaseUser => {
     if (!firebaseUser) {
       const session = { token: null, user: null };
@@ -121,11 +163,17 @@ const authClient = (() => {
       const token = await firebaseUser.getIdToken();
       const session = { token, user: mapFirebaseUser(firebaseUser) };
       setState(session);
+      refreshUserProfile(firebaseUser).catch(error => {
+        console.warn("Unable to refresh user profile", error);
+      });
       return session;
     } catch (error) {
       console.warn("Unable to read Firebase ID token", error);
       const session = { token: null, user: mapFirebaseUser(firebaseUser) };
       setState(session);
+      refreshUserProfile(firebaseUser).catch(profileError => {
+        console.warn("Unable to refresh user profile", profileError);
+      });
       return session;
     }
   };
@@ -189,6 +237,7 @@ const authClient = (() => {
   };
 
   const getCurrentUser = () => authState.user;
+  const getHasPaid = () => Boolean(authState.user?.hasPaid);
   const getSessionToken = () => authState.token;
 
   const subscribe = callback => {
@@ -207,7 +256,83 @@ const authClient = (() => {
     });
   });
 
-  return { signUp, signIn, signOut, getCurrentUser, getSessionToken, subscribe };
+  return {
+    signUp,
+    signIn,
+    signOut,
+    getCurrentUser,
+    getSessionToken,
+    getHasPaid,
+    refreshUserProfile,
+    subscribe,
+  };
+})();
+
+const resourceService = (() => {
+  const mapResource = (id, data) => {
+    if (!id || !data) return null;
+
+    const title = typeof data.title === "string" ? data.title.trim() : "";
+    const description = typeof data.description === "string" ? data.description.trim() : "";
+    const storagePath = typeof data.storagePath === "string" ? data.storagePath.trim() : "";
+    const entitlement = typeof data.entitlement === "string" ? data.entitlement.trim() : "";
+    const createdBy = typeof data.createdBy === "string" ? data.createdBy : "";
+
+    if (!title || !storagePath) return null;
+
+    return {
+      id,
+      title,
+      description,
+      storagePath,
+      entitlement,
+      createdBy,
+      createdAt: data.createdAt || null,
+    };
+  };
+
+  const fetchResources = async () => {
+    try {
+      const resourcesQuery = query(collection(firestore, "resources"), orderBy("createdAt", "desc"));
+      const snapshot = await getDocs(resourcesQuery);
+      const items = [];
+
+      snapshot.forEach(docSnapshot => {
+        const resource = mapResource(docSnapshot.id, docSnapshot.data());
+        if (resource) {
+          items.push(resource);
+        }
+      });
+
+      return items;
+    } catch (error) {
+      console.error("Unable to load resources", error);
+      throw new Error("Unable to load resources. Please try again later.");
+    }
+  };
+
+  const ensureAuthorized = () => {
+    if (!authClient.getHasPaid()) {
+      throw new Error("You need an active subscription to access this resource.");
+    }
+  };
+
+  const getDownloadUrl = async storagePath => {
+    ensureAuthorized();
+    if (!storagePath) {
+      throw new Error("Resource path is missing.");
+    }
+
+    try {
+      const fileRef = storageRef(storage, storagePath);
+      return await getDownloadURL(fileRef);
+    } catch (error) {
+      console.error("Unable to generate download URL", error);
+      throw new Error("Unable to download this resource right now.");
+    }
+  };
+
+  return { fetchResources, getDownloadUrl };
 })();
 
 
