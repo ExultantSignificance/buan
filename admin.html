@@ -78,6 +78,47 @@
           <tbody data-admin-rows></tbody>
         </table>
       </div>
+
+      <section class="admin-resources" data-admin-resources>
+        <header class="admin-resources__header">
+          <h3 class="admin-resources__title">Resource library.</h3>
+          <p class="admin-resources__intro">Upload study resources for students and manage existing files.</p>
+        </header>
+
+        <form class="admin-resources__form" data-admin-resources-form>
+          <div class="admin-field">
+            <label for="resourceTitle">Title</label>
+            <input type="text" id="resourceTitle" name="resourceTitle" placeholder="e.g., Differentiation revision" data-admin-resource-title required />
+          </div>
+          <div class="admin-field">
+            <label for="resourceDescription">Description</label>
+            <textarea id="resourceDescription" name="resourceDescription" placeholder="Short summary to help students find the right resource" rows="3" data-admin-resource-description></textarea>
+          </div>
+          <div class="admin-field">
+            <label for="resourceFile">PDF file</label>
+            <input type="file" id="resourceFile" name="resourceFile" accept="application/pdf" data-admin-resource-file required />
+          </div>
+          <div class="admin-actions">
+            <button type="submit" class="admin-button" data-admin-resource-upload>Upload</button>
+          </div>
+          <p class="admin-resources__status" data-admin-resources-status hidden></p>
+        </form>
+
+        <div class="admin-table-wrapper">
+          <table class="admin-table admin-resources__table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Path</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody data-admin-resource-rows></tbody>
+          </table>
+          <p class="admin-empty" data-admin-resource-empty hidden>No resources uploaded yet.</p>
+        </div>
+      </section>
     </section>
   </main>
 

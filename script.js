@@ -26,6 +26,7 @@ import {
   ref as storageRef,
   getDownloadURL,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAv-v8Q_bS3GtcYAAI-3PB4XL1WJv-_shE",
@@ -41,6 +42,7 @@ const app = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(app);
 const firestore = getFirestore(app);
 const storage = getStorage(app);
+const functions = getFunctions(app);
 
 const ADMIN_FIREBASE_UID = "g3RWfVUte6bvIcXXim7rvNhv4hL2";
 
@@ -1504,14 +1506,25 @@ runWhenReady(() => {
   const modalClose = document.querySelector("[data-admin-modal-close]");
   const modalConfirm = document.querySelector("[data-admin-modal-confirm]");
   const confirmDefaultText = modalConfirm?.textContent || "Confirm";
+  const resourceSection = adminPage.querySelector("[data-admin-resources]");
+  const resourceForm = resourceSection?.querySelector("[data-admin-resources-form]");
+  const resourceTitleInput = resourceSection?.querySelector("[data-admin-resource-title]");
+  const resourceDescriptionInput = resourceSection?.querySelector("[data-admin-resource-description]");
+  const resourceFileInput = resourceSection?.querySelector("[data-admin-resource-file]");
+  const resourceUploadButton = resourceSection?.querySelector("[data-admin-resource-upload]");
+  const resourceStatus = resourceSection?.querySelector("[data-admin-resources-status]");
+  const resourceTableBody = resourceSection?.querySelector("[data-admin-resource-rows]");
+  const resourceEmptyState = resourceSection?.querySelector("[data-admin-resource-empty]");
   const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const dayButtons = new Map();
   let activeDayButton = null;
   let modalDateKey = null;
   let availabilityState = availabilityService.getSnapshot();
   let availabilityUnsubscribe = null;
+  let resourcesUnsubscribe = null;
   let escListener = null;
   let modalCloseTimeoutId = null;
+  let hasAttachedResourceForm = false;
   const toIsoDate = date => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -1548,6 +1561,168 @@ runWhenReady(() => {
       errorEl.textContent = message || "";
       errorEl.hidden = !message;
     }
+  };
+
+  const setResourceStatus = (type, message) => {
+    if (!resourceStatus) return;
+    resourceStatus.textContent = message || "";
+    resourceStatus.dataset.state = type || "";
+    resourceStatus.hidden = !message;
+  };
+
+  const setResourceFormLoading = isLoading => {
+    if (resourceUploadButton) {
+      resourceUploadButton.disabled = Boolean(isLoading);
+    }
+    if (resourceForm) {
+      resourceForm.classList.toggle("is-loading", Boolean(isLoading));
+    }
+  };
+
+  const formatResourceDate = value => {
+    if (!value) return "—";
+    try {
+      const date = typeof value.toDate === "function" ? value.toDate() : new Date(value);
+      if (Number.isNaN(date.getTime())) return "—";
+      return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    } catch (error) {
+      console.warn("Unable to format resource date", error);
+      return "—";
+    }
+  };
+
+  const renderResourceRows = resources => {
+    if (!resourceTableBody) return;
+    resourceTableBody.innerHTML = "";
+
+    resources.forEach(resource => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${resource.title || "Untitled"}</td>
+        <td>${resource.description || "—"}</td>
+        <td class="admin-resource-path">${resource.storagePath || "—"}</td>
+        <td>${formatResourceDate(resource.createdAt)}</td>
+      `;
+      resourceTableBody.appendChild(row);
+    });
+
+    if (resourceEmptyState) {
+      resourceEmptyState.hidden = resources.length > 0;
+    }
+  };
+
+  const readFileAsBase64 = file =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = typeof reader.result === "string" ? reader.result : "";
+        const base64 = result.includes(",") ? result.split(",", 2)[1] : result;
+        resolve(base64);
+      };
+      reader.onerror = error => reject(error);
+      reader.readAsDataURL(file);
+    });
+
+  const uploadResourceCallable = httpsCallable(functions, "uploadResource");
+
+  const handleResourceUpload = async event => {
+    event.preventDefault();
+    if (!resourceForm) return;
+
+    const user = firebaseAuth.currentUser;
+    if (!user || user.uid !== ADMIN_FIREBASE_UID) {
+      setResourceStatus("error", "Only administrators can upload resources.");
+      return;
+    }
+
+    const title = resourceTitleInput?.value?.trim() || "";
+    const description = resourceDescriptionInput?.value?.trim() || "";
+    const file = resourceFileInput?.files?.[0];
+
+    const errors = [];
+    if (!title) errors.push("Enter a resource title.");
+    if (!file) errors.push("Attach a PDF file to upload.");
+    if (file && file.type && file.type !== "application/pdf" && !file.name?.toLowerCase().endsWith(".pdf")) {
+      errors.push("Only PDF files are supported.");
+    }
+
+    if (errors.length) {
+      setResourceStatus("error", errors[0]);
+      return;
+    }
+
+    setResourceStatus("info", "Uploading resource…");
+    setResourceFormLoading(true);
+
+    try {
+      const fileData = await readFileAsBase64(file);
+      await uploadResourceCallable({
+        title,
+        description,
+        fileName: file.name,
+        contentType: file.type || "application/pdf",
+        fileData,
+      });
+      setResourceStatus("success", "Resource uploaded successfully.");
+      resourceForm.reset();
+    } catch (error) {
+      console.error("Unable to upload resource", error);
+      const message = typeof error?.message === "string" && error.message.trim()
+        ? error.message
+        : "Unable to upload resource right now. Please try again later.";
+      setResourceStatus("error", message);
+    } finally {
+      setResourceFormLoading(false);
+    }
+  };
+
+  const attachResourceForm = () => {
+    if (!resourceForm || hasAttachedResourceForm) return;
+    resourceForm.addEventListener("submit", handleResourceUpload);
+    hasAttachedResourceForm = true;
+  };
+
+  const normalizeResource = docSnapshot => {
+    const data = docSnapshot.data() || {};
+    const title = typeof data.title === "string" ? data.title.trim() : "";
+    const storagePath = typeof data.storagePath === "string" ? data.storagePath.trim() : "";
+    if (!title || !storagePath) return null;
+    return {
+      id: docSnapshot.id,
+      title,
+      description: typeof data.description === "string" ? data.description.trim() : "",
+      storagePath,
+      createdAt: data.createdAt || null,
+    };
+  };
+
+  const startResourceListener = () => {
+    if (resourcesUnsubscribe || !resourceTableBody) return;
+    try {
+      const resourcesQuery = query(collection(firestore, "resources"), orderBy("createdAt", "desc"));
+      resourcesUnsubscribe = onSnapshot(resourcesQuery, snapshot => {
+        const resources = snapshot.docs
+          .map(docSnapshot => normalizeResource(docSnapshot))
+          .filter(Boolean);
+        renderResourceRows(resources);
+        setResourceStatus("", "");
+      }, error => {
+        console.error("Unable to load resources", error);
+        setResourceStatus("error", "Unable to load resources right now.");
+      });
+    } catch (error) {
+      console.error("Unable to start resource listener", error);
+      setResourceStatus("error", "Unable to load resources right now.");
+    }
+  };
+
+  const stopResourceListener = () => {
+    if (resourcesUnsubscribe) {
+      resourcesUnsubscribe();
+      resourcesUnsubscribe = null;
+    }
+    renderResourceRows([]);
+    setResourceStatus("", "");
   };
 
   const describeAvailability = (dateKey, availabilityData = getAvailabilityData()) => {
@@ -1908,12 +2083,21 @@ runWhenReady(() => {
 
   attachStatusListener();
 
+  if (resourceSection) {
+    resourceSection.hidden = true;
+  }
+
   setLoading(true);
 
   const authUnsubscribe = onAuthStateChanged(firebaseAuth, user => {
     if (bookingsUnsubscribe) {
       bookingsUnsubscribe();
       bookingsUnsubscribe = null;
+    }
+
+    stopResourceListener();
+    if (resourceSection) {
+      resourceSection.hidden = true;
     }
 
     if (!user) {
@@ -1926,7 +2110,14 @@ runWhenReady(() => {
       setLoading(false);
       renderEmpty(true);
       setError("You do not have permission to view this page.");
+      setResourceStatus("error", "You do not have permission to view this page.");
       return;
+    }
+
+    attachResourceForm();
+    startResourceListener();
+    if (resourceSection) {
+      resourceSection.hidden = false;
     }
 
     const bookingsQuery = query(collection(firestore, "bookings"), orderBy("createdAt", "desc"));
@@ -1963,6 +2154,7 @@ runWhenReady(() => {
       bookingsUnsubscribe();
       bookingsUnsubscribe = null;
     }
+    stopResourceListener();
     if (typeof availabilityUnsubscribe === "function") {
       availabilityUnsubscribe();
       availabilityUnsubscribe = null;
