@@ -240,6 +240,7 @@ const authClient = (() => {
 
   const getCurrentUser = () => authState.user;
   const getHasPaid = () => Boolean(authState.user?.hasPaid);
+  const isAdmin = () => Boolean(authState.user?.uid && authState.user.uid === ADMIN_FIREBASE_UID);
   const getSessionToken = () => authState.token;
 
   const subscribe = callback => {
@@ -265,6 +266,7 @@ const authClient = (() => {
     getCurrentUser,
     getSessionToken,
     getHasPaid,
+    isAdmin,
     refreshUserProfile,
     subscribe,
   };
@@ -314,7 +316,7 @@ const resourceService = (() => {
   };
 
   const ensureAuthorized = () => {
-    if (!authClient.getHasPaid()) {
+    if (!authClient.getHasPaid() && !authClient.isAdmin()) {
       throw new Error("You need an active subscription to access this resource.");
     }
   };
@@ -2635,7 +2637,7 @@ runWhenReady(() => {
       return;
     }
 
-    if (!authClient.getHasPaid()) {
+    if (!authClient.getHasPaid() && !authClient.isAdmin()) {
       clearViewer();
       setPaywallVisible(true);
       setStatus("warning", "You need an active subscription to view this resource.");
@@ -2713,7 +2715,7 @@ runWhenReady(() => {
       return;
     }
 
-    if (!authClient.getHasPaid()) {
+    if (!authClient.getHasPaid() && !authClient.isAdmin()) {
       clearViewer();
       setPaywallVisible(true);
       setStatus("warning", "Subscribe to unlock PDFs and download links.");
