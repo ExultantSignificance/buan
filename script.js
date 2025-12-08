@@ -600,6 +600,64 @@ const runWhenReady = callback => {
   }
 };
 
+const networkTime = (() => {
+  let offsetMs = 0;
+  let syncPromise = null;
+
+  const parseNetworkDate = data => {
+    const source = typeof data?.datetime === "string"
+      ? data.datetime
+      : (typeof data?.utc_datetime === "string" ? data.utc_datetime : null);
+    if (!source) return null;
+    const parsed = new Date(source);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed;
+  };
+
+  const fetchNetworkOffset = async () => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 7000);
+    try {
+      const response = await fetch("https://worldtimeapi.org/api/ip", { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`Time service responded with status ${response.status}`);
+      }
+      const data = await response.json();
+      const networkDate = parseNetworkDate(data);
+      if (!networkDate) {
+        throw new Error("Time service returned an invalid date");
+      }
+      offsetMs = networkDate.getTime() - Date.now();
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  };
+
+  const ensureSynced = () => {
+    if (!syncPromise) {
+      syncPromise = fetchNetworkOffset().catch(error => {
+        console.warn("Unable to sync network time", error);
+        offsetMs = 0;
+        syncPromise = null;
+      });
+    }
+    return syncPromise;
+  };
+
+  const getCurrentDate = async () => {
+    await ensureSynced();
+    return new Date(Date.now() + offsetMs);
+  };
+
+  const getCurrentMidnight = async () => {
+    const date = await getCurrentDate();
+    date.setHours(0, 0, 0, 0);
+    return date;
+  };
+
+  return { ensureSynced, getCurrentDate, getCurrentMidnight };
+})();
+
 const TIME_SLOT_VALUES = (() => {
   const values = [];
   for (let hour = 8; hour <= 18; hour++) {
@@ -1086,7 +1144,7 @@ const getFieldValue = (form, name) => {
   return typeof field.value === "string" ? field.value.trim() : "";
 };
 
-runWhenReady(() => {
+runWhenReady(async () => {
   const nav = document.querySelector("nav.off-screen-menu");
   if (!nav) return;
 
@@ -2196,7 +2254,7 @@ runWhenReady(() => {
     modalConfirm.addEventListener("click", handleModalConfirm);
   }
 
-  const buildAvailabilityCalendar = () => {
+  const buildAvailabilityCalendar = async () => {
     if (!calendarWeekdays || !calendarGrid) return;
     calendarWeekdays.innerHTML = "";
     weekdayLabels.forEach(label => {
@@ -2209,8 +2267,7 @@ runWhenReady(() => {
     calendarGrid.innerHTML = "";
     dayButtons.clear();
 
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
+    const start = await networkTime.getCurrentMidnight();
     const getMondayFirstOffset = date => (date.getDay() + 6) % 7;
     const startOffset = getMondayFirstOffset(start);
 
@@ -2237,7 +2294,7 @@ runWhenReady(() => {
   };
 
   if (availabilitySection && calendarWeekdays && calendarGrid) {
-    buildAvailabilityCalendar();
+    await buildAvailabilityCalendar();
     availabilityService.ensureLoaded().catch(() => {});
     availabilityUnsubscribe = availabilityService.subscribe(state => {
       availabilityState = state;
@@ -2836,7 +2893,7 @@ runWhenReady(() => {
   });
 });
 
-runWhenReady(() => {
+runWhenReady(async () => {
   const calendarPage = document.querySelector("[data-calendar]");
   if (!calendarPage) return;
 
@@ -2883,8 +2940,7 @@ runWhenReady(() => {
     weekdaysContainer.appendChild(el);
   });
 
-  const startDate = new Date();
-  startDate.setHours(0, 0, 0, 0);
+  const startDate = await networkTime.getCurrentMidnight();
   const getMondayFirstOffset = date => (date.getDay() + 6) % 7;
   const startOffset = getMondayFirstOffset(startDate);
   const totalDays = 28; // four weeks
@@ -3145,7 +3201,7 @@ runWhenReady(() => {
   });
 });
 
-runWhenReady(() => {
+runWhenReady(async () => {
   const adminCalendar = document.querySelector("[data-admin-calendar]");
   if (!adminCalendar) return;
 
@@ -3172,8 +3228,7 @@ runWhenReady(() => {
   };
 
   grid.innerHTML = "";
-  const startDate = new Date();
-  startDate.setHours(0, 0, 0, 0);
+  const startDate = await networkTime.getCurrentMidnight();
   const getMondayFirstOffset = date => (date.getDay() + 6) % 7;
   const startOffset = getMondayFirstOffset(startDate);
   const totalDays = 28;
