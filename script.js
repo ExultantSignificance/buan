@@ -1505,6 +1505,7 @@ runWhenReady(() => {
   const modalDateLabel = document.querySelector("[data-admin-modal-date]");
   const modalClose = document.querySelector("[data-admin-modal-close]");
   const modalConfirm = document.querySelector("[data-admin-modal-confirm]");
+  const rangeApplyDefaultText = "Apply";
   const confirmDefaultText = modalConfirm?.textContent || "Confirm";
   const resourceSection = adminPage.querySelector("[data-admin-resources]");
   const resourceForm = resourceSection?.querySelector("[data-admin-resources-form]");
@@ -1519,6 +1520,8 @@ runWhenReady(() => {
   const dayButtons = new Map();
   let activeDayButton = null;
   let modalDateKey = null;
+  let rangeSliderController = null;
+  let rangeApplyButton = null;
   let availabilityState = availabilityService.getSnapshot();
   let availabilityUnsubscribe = null;
   let resourcesUnsubscribe = null;
@@ -1837,15 +1840,183 @@ runWhenReady(() => {
     }
   };
 
+  const buildRangeSlider = (slots, day) => {
+    const container = document.createElement("div");
+    container.className = "admin-modal__range";
+
+    const startLabelValue = document.createElement("span");
+    const endLabelValue = document.createElement("span");
+    const applyButton = document.createElement("button");
+    applyButton.type = "button";
+    applyButton.className = "admin-modal__apply";
+    applyButton.textContent = rangeApplyDefaultText;
+
+    const header = document.createElement("div");
+    header.className = "admin-modal__range-header";
+
+    const startGroup = document.createElement("div");
+    startGroup.className = "admin-modal__range-label";
+    const startTitle = document.createElement("p");
+    startTitle.textContent = "Start";
+    startLabelValue.dataset.adminRangeStart = "";
+    startGroup.append(startTitle, startLabelValue);
+
+    const endGroup = document.createElement("div");
+    endGroup.className = "admin-modal__range-label";
+    const endTitle = document.createElement("p");
+    endTitle.textContent = "End";
+    endLabelValue.dataset.adminRangeEnd = "";
+    endGroup.append(endTitle, endLabelValue);
+
+    header.append(startGroup, endGroup);
+
+    const slider = document.createElement("div");
+    slider.className = "admin-modal__slider";
+    slider.setAttribute("role", "presentation");
+
+    const track = document.createElement("div");
+    track.className = "admin-modal__slider-track";
+
+    const selection = document.createElement("div");
+    selection.className = "admin-modal__slider-selection";
+
+    const startHandle = document.createElement("button");
+    startHandle.type = "button";
+    startHandle.className = "admin-modal__slider-handle";
+    startHandle.setAttribute("aria-label", "Adjust start time");
+    startHandle.dataset.handle = "start";
+
+    const endHandle = document.createElement("button");
+    endHandle.type = "button";
+    endHandle.className = "admin-modal__slider-handle";
+    endHandle.setAttribute("aria-label", "Adjust end time");
+    endHandle.dataset.handle = "end";
+
+    slider.append(track, selection, startHandle, endHandle);
+
+    const actions = document.createElement("div");
+    actions.className = "admin-modal__range-actions";
+    actions.appendChild(applyButton);
+
+    container.append(header, slider, actions);
+
+    const getInitialRange = () => {
+      const availableIndices = slots
+        .map((slot, index) => ({ index, available: day[slot.value] !== false }))
+        .filter(entry => entry.available)
+        .map(entry => entry.index);
+
+      if (!availableIndices.length) {
+        return { start: 0, end: slots.length - 1 };
+      }
+
+      return { start: Math.min(...availableIndices), end: Math.max(...availableIndices) };
+    };
+
+    const state = getInitialRange();
+    const maxIndex = Math.max(0, slots.length - 1);
+    const stepPercent = maxIndex === 0 ? 0 : 100 / maxIndex;
+    let activeHandle = null;
+
+    const updateLabels = () => {
+      startLabelValue.textContent = slots[state.start].display;
+      endLabelValue.textContent = slots[state.end].display;
+    };
+
+    const updatePositions = () => {
+      const startPercent = state.start * stepPercent;
+      const endPercent = state.end * stepPercent;
+      selection.style.left = `${startPercent}%`;
+      const rawWidth = endPercent - startPercent;
+      const width = Math.max(rawWidth, stepPercent * 0.35);
+      const cappedWidth = Math.min(width, 100 - startPercent);
+      selection.style.width = `${cappedWidth}%`;
+      startHandle.style.left = `${startPercent}%`;
+      endHandle.style.left = `${endPercent}%`;
+    };
+
+    const clampIndex = index => Math.min(Math.max(index, 0), maxIndex);
+
+    const handleKeyPress = (event, handle) => {
+      if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+      event.preventDefault();
+      const delta = event.key === "ArrowLeft" ? -1 : 1;
+      if (handle === "start") {
+        state.start = clampIndex(Math.min(state.end, state.start + delta));
+      } else {
+        state.end = clampIndex(Math.max(state.start, state.end + delta));
+      }
+      updateLabels();
+      updatePositions();
+    };
+
+    const getIndexFromEvent = event => {
+      const rect = slider.getBoundingClientRect();
+      const position = (event.clientX - rect.left) / rect.width;
+      const ratio = Math.min(Math.max(position, 0), 1);
+      return clampIndex(Math.round(ratio * maxIndex));
+    };
+
+    const stopDragging = () => {
+      activeHandle = null;
+      slider.classList.remove("is-dragging");
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", stopDragging);
+      window.removeEventListener("pointercancel", stopDragging);
+    };
+
+    const onPointerMove = event => {
+      if (!activeHandle) return;
+      const index = getIndexFromEvent(event);
+      if (activeHandle === "start") {
+        state.start = clampIndex(Math.min(index, state.end));
+      } else {
+        state.end = clampIndex(Math.max(index, state.start));
+      }
+      updateLabels();
+      updatePositions();
+    };
+
+    const onPointerDown = handle => event => {
+      event.preventDefault();
+      activeHandle = handle;
+      slider.classList.add("is-dragging");
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", stopDragging);
+      window.addEventListener("pointercancel", stopDragging);
+    };
+
+    startHandle.addEventListener("pointerdown", onPointerDown("start"));
+    endHandle.addEventListener("pointerdown", onPointerDown("end"));
+    startHandle.addEventListener("keydown", event => handleKeyPress(event, "start"));
+    endHandle.addEventListener("keydown", event => handleKeyPress(event, "end"));
+
+    updateLabels();
+    updatePositions();
+
+    return {
+      container,
+      applyButton,
+      getRange: () => ({ ...state }),
+    };
+  };
+
   const renderModalTimes = dateKey => {
     if (!modalTimes) return;
     modalTimes.innerHTML = "";
+    rangeSliderController = null;
+    rangeApplyButton = null;
     if (hasAvailabilityError()) {
       return;
     }
     const slots = getStandardTimeSlots();
     const availabilityData = getAvailabilityData();
     const day = availabilityData[dateKey] || {};
+
+    rangeSliderController = buildRangeSlider(slots, day);
+    rangeApplyButton = rangeSliderController.applyButton;
+    rangeApplyButton.addEventListener("click", handleRangeApply);
+    modalTimes.appendChild(rangeSliderController.container);
 
     slots.forEach(({ value, display }) => {
       const wrapper = document.createElement("div");
@@ -1976,6 +2147,35 @@ runWhenReady(() => {
       setError("Unable to save availability. Try again later.");
       modalConfirm.disabled = false;
       modalConfirm.textContent = confirmDefaultText;
+    }
+  };
+
+  const handleRangeApply = async () => {
+    if (!modalDateKey || !rangeSliderController || !rangeApplyButton) return;
+    if (hasAvailabilityError()) {
+      setError(getAvailabilityErrorMessage());
+      return;
+    }
+
+    const { start, end } = rangeSliderController.getRange();
+    const payload = {};
+    TIME_SLOT_VALUES.forEach((timeKey, index) => {
+      payload[timeKey] = index >= start && index <= end;
+    });
+
+    rangeApplyButton.disabled = true;
+    const previousText = rangeApplyButton.textContent || rangeApplyDefaultText;
+    rangeApplyButton.textContent = "Applying...";
+
+    try {
+      await availabilityService.setDayAvailability(modalDateKey, payload);
+      setError("");
+    } catch (error) {
+      console.error("Unable to update availability", error);
+      setError("Unable to save availability. Try again later.");
+    } finally {
+      rangeApplyButton.disabled = false;
+      rangeApplyButton.textContent = previousText;
     }
   };
 
