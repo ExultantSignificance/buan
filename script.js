@@ -2030,8 +2030,7 @@ runWhenReady(() => {
       input.type = "checkbox";
       input.id = id;
       input.dataset.time = value;
-      const available = day[value] === false ? false : true;
-      input.checked = available;
+      input.checked = day[value] === true;
 
       const syncAppearance = () => {
         wrapper.classList.toggle("admin-modal__toggle--unavailable", !input.checked);
@@ -2160,7 +2159,13 @@ runWhenReady(() => {
     const { start, end } = rangeSliderController.getRange();
     const payload = {};
     TIME_SLOT_VALUES.forEach((timeKey, index) => {
-      payload[timeKey] = index >= start && index <= end;
+      const isSelected = index >= start && index <= end;
+      payload[timeKey] = isSelected;
+      const input = modalTimes.querySelector(`input[type="checkbox"][data-time="${timeKey}"]`);
+      if (input) {
+        input.checked = isSelected;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }
     });
 
     rangeApplyButton.disabled = true;
