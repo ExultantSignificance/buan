@@ -1555,7 +1555,7 @@ runWhenReady(() => {
   }
 });
 
-runWhenReady(() => {
+runWhenReady(async () => {
   const adminPage = document.querySelector("[data-admin-page]");
   if (!adminPage) return;
 
