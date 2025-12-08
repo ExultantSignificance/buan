@@ -44,7 +44,8 @@ const firestore = getFirestore(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
 
-const ADMIN_FIREBASE_UID = "g3RWfVUte6bvIcXXim7rvNhv4hL2";
+const ADMIN_FIREBASE_UID =
+  (typeof window !== "undefined" && window.BUAN_ADMIN_UID) || "g3RWfVUte6bvIcXXim7rvNhv4hL2";
 
 const AUTH_STORAGE_KEY = "buan.authSession";
 
