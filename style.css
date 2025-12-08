@@ -575,28 +575,13 @@ body.no-background::after {
   left: 1rem;
   cursor: pointer;
   z-index: 20;
-  background: transparent;
-  border: none;
-  padding: 0.2rem;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  touch-action: manipulation;
 }
 
-.hamburger:focus-visible {
-  outline: 2px solid #111;
-  outline-offset: 4px;
-  border-radius: 6px;
-}
-
-.hamburger span {
+.hamburger div {
   width: 25px;
   height: 3px;
   background-color: #111;
-  display: block;
+  margin: 5px 0;
   transition: all 0.3s ease;
 }
 
@@ -632,10 +617,6 @@ body.no-background::after {
   right: 0;
   opacity: 1;
   pointer-events: auto;
-}
-
-body.menu-open {
-  overflow: hidden;
 }
 
 .off-screen-menu a,
