@@ -2308,6 +2308,218 @@ runWhenReady(() => {
 });
 
 runWhenReady(() => {
+  const resourcesPage = document.querySelector('[data-resources-page]');
+  if (!resourcesPage) return;
+
+  const statusEl = resourcesPage.querySelector('[data-resources-status]');
+  const listEl = resourcesPage.querySelector('[data-resources-list]');
+  const loadingEl = resourcesPage.querySelector('[data-resources-loading]');
+  const emptyEl = resourcesPage.querySelector('[data-resources-empty]');
+  const viewer = resourcesPage.querySelector('[data-resources-viewer]');
+  const paywall = resourcesPage.querySelector('[data-resources-paywall]');
+  const frame = resourcesPage.querySelector('[data-resources-frame]');
+  const titleEl = resourcesPage.querySelector('[data-resources-title]');
+  const descriptionEl = resourcesPage.querySelector('[data-resources-description]');
+  const entitlementEl = resourcesPage.querySelector('[data-resources-entitlement]');
+  const signInButton = resourcesPage.querySelector('[data-resources-signin]');
+  const paywallCta = resourcesPage.querySelector('[data-resources-paywall-cta]');
+
+  let resources = [];
+  let isLoading = false;
+  let activeUrl = "";
+  const resourceLookup = new Map();
+
+  const setStatus = (state, message) => {
+    if (!statusEl) return;
+    statusEl.dataset.state = state || "";
+    statusEl.textContent = message || "";
+    statusEl.hidden = !message;
+  };
+
+  const setLoading = loading => {
+    isLoading = Boolean(loading);
+    if (loadingEl) {
+      loadingEl.hidden = !isLoading;
+    }
+  };
+
+  const clearViewer = () => {
+    activeUrl = "";
+    if (frame) {
+      frame.src = "";
+      frame.removeAttribute("src");
+    }
+    if (viewer) {
+      viewer.hidden = true;
+    }
+  };
+
+  const setPaywallVisible = visible => {
+    if (paywall) {
+      paywall.hidden = !visible;
+    }
+  };
+
+  const renderEmpty = visible => {
+    if (emptyEl) {
+      emptyEl.hidden = !visible;
+    }
+  };
+
+  const renderResources = () => {
+    if (!listEl) return;
+    listEl.innerHTML = "";
+    renderEmpty(resources.length === 0 && !isLoading);
+
+    resources.forEach(resource => {
+      const card = document.createElement("article");
+      card.className = "resource-card";
+      card.innerHTML = `
+        <div class="resource-card__meta">
+          <p class="eyebrow">${resource.entitlement || "Member resource"}</p>
+          <h3>${resource.title}</h3>
+          <p class="resource-card__description">${resource.description || "Secure PDF"}</p>
+        </div>
+        <div class="resource-card__actions">
+          <button class="pill-button" type="button" data-resource-id="${resource.id}">Open</button>
+        </div>
+      `;
+      listEl.appendChild(card);
+    });
+  };
+
+  const loadResources = async () => {
+    setLoading(true);
+    setStatus("info", "Loading resources…");
+    clearViewer();
+    setPaywallVisible(false);
+
+    try {
+      const items = await resourceService.fetchResources();
+      resources = items;
+      resourceLookup.clear();
+      items.forEach(item => {
+        resourceLookup.set(item.id, item);
+      });
+      setStatus("", "");
+      renderResources();
+      renderEmpty(items.length === 0);
+    } catch (error) {
+      setStatus("error", error.message || "Unable to load resources right now.");
+      renderEmpty(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateViewerMeta = resource => {
+    if (titleEl) titleEl.textContent = resource?.title || "";
+    if (descriptionEl) descriptionEl.textContent = resource?.description || "";
+    if (entitlementEl) entitlementEl.textContent = resource?.entitlement || "Member resource";
+  };
+
+  const openResource = async resource => {
+    if (!resource) return;
+
+    if (!authClient.getCurrentUser()) {
+      setStatus("info", "Sign in to access secure resources.");
+      clearViewer();
+      if (signInButton) {
+        signInButton.hidden = false;
+      }
+      return;
+    }
+
+    if (!authClient.getHasPaid()) {
+      clearViewer();
+      setPaywallVisible(true);
+      setStatus("warning", "You need an active subscription to view this resource.");
+      return;
+    }
+
+    setPaywallVisible(false);
+    clearViewer();
+    updateViewerMeta(resource);
+    setStatus("info", "Fetching secure link…");
+
+    try {
+      const url = await resourceService.getDownloadUrl(resource.storagePath);
+      activeUrl = `${url}#toolbar=0&navpanes=0&scrollbar=0`;
+      if (frame) {
+        frame.src = activeUrl;
+      }
+      if (viewer) {
+        viewer.hidden = false;
+      }
+      setStatus("", "");
+    } catch (error) {
+      clearViewer();
+      setStatus("error", error.message || "Unable to open this resource.");
+    }
+  };
+
+  listEl?.addEventListener("click", event => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const id = target.dataset.resourceId;
+    if (!id) return;
+    event.preventDefault();
+    const resource = resourceLookup.get(id);
+    if (resource) {
+      openResource(resource);
+    }
+  });
+
+  if (signInButton) {
+    signInButton.addEventListener("click", () => {
+      const redirect = encodeURIComponent("resources.html");
+      window.location.href = `signin.html?redirect=${redirect}`;
+    });
+  }
+
+  if (paywallCta) {
+    paywallCta.addEventListener("click", () => {
+      window.location.href = "bundles.html";
+    });
+  }
+
+  authClient.subscribe(session => {
+    const user = session?.user;
+    if (!user) {
+      resources = [];
+      resourceLookup.clear();
+      renderResources();
+      clearViewer();
+      setPaywallVisible(false);
+      setStatus("info", "Sign in to see shared resources.");
+      renderEmpty(false);
+      if (signInButton) {
+        signInButton.hidden = false;
+      }
+      return;
+    }
+
+    if (signInButton) {
+      signInButton.hidden = true;
+    }
+
+    if (!resources.length) {
+      loadResources();
+      return;
+    }
+
+    if (!authClient.getHasPaid()) {
+      clearViewer();
+      setPaywallVisible(true);
+      setStatus("warning", "Subscribe to unlock PDFs and download links.");
+    } else {
+      setPaywallVisible(false);
+      setStatus("", "");
+    }
+  });
+});
+
+runWhenReady(() => {
   const resourceScroll = document.querySelector('[data-resource-scroll]');
   if (!resourceScroll) return;
 

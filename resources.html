@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buan Tutoring | Resources</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="sticky-header">
+    <div class="hamburger" id="hamburger">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+    <h1>buan tutoring</h1>
+  </header>
+
+  <nav class="off-screen-menu" id="menu">
+    <a href="index.html">Home</a>
+    <a href="bundles.html">Pricing</a>
+    <a href="booknow.html">Book Now</a>
+    <a href="signin.html" class="auth-link">Sign In</a>
+    <a href="signup.html" class="auth-link auth-link--primary">Sign Up</a>
+  </nav>
+
+  <main class="resources-page" data-resources-page>
+    <section class="resources-hero">
+      <p class="eyebrow">Premium Resources</p>
+      <h2>Study guides and practice material, curated for you.</h2>
+      <p>Stay signed in to unlock the latest resources shared by your tutors.</p>
+    </section>
+
+    <section class="resources-layout">
+      <aside class="resources-sidebar">
+        <div class="resources-status" data-resources-status aria-live="polite"></div>
+        <button class="auth-button" type="button" data-resources-signin hidden>Sign in to continue</button>
+        <div class="resources-loading" data-resources-loading hidden>Loading resources…</div>
+        <p class="resources-empty" data-resources-empty hidden>No resources available yet.</p>
+        <div class="resources-list" data-resources-list></div>
+      </aside>
+
+      <section class="resources-body">
+        <div class="resources-paywall" data-resources-paywall hidden>
+          <h3>Unlock with your subscription</h3>
+          <p>Active subscribers can open and download the latest PDFs instantly.</p>
+          <button class="primary-btn" type="button" data-resources-paywall-cta>View pricing</button>
+        </div>
+
+        <article class="resources-viewer" data-resources-viewer hidden>
+          <header class="resources-viewer__header">
+            <div>
+              <p class="eyebrow" data-resources-entitlement></p>
+              <h3 data-resources-title></h3>
+              <p class="resources-viewer__description" data-resources-description></p>
+            </div>
+            <a class="pill-button" href="checkout.html">Need access? Go to checkout</a>
+          </header>
+          <div class="resources-frame">
+            <iframe
+              title="Resource preview"
+              data-resources-frame
+              loading="lazy"
+              referrerpolicy="no-referrer"
+              allowfullscreen="false"
+              aria-label="Resource PDF viewer"
+            ></iframe>
+          </div>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <footer class="normal-footer">
+    <p>© 2025 Buan Tutoring. All rights reserved.</p>
+  </footer>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
