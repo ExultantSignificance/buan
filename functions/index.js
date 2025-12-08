@@ -1,7 +1,11 @@
 import Stripe from "stripe";
-import { onRequest } from "firebase-functions/v2/https";
+import { defineString } from "firebase-functions/params";
+import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
+import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import Twilio from "twilio";
+import sgMail from "@sendgrid/mail";
 
 initializeApp();
 
@@ -12,6 +16,155 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
 
 const SUCCESS_URL = "https://buantutoring.online/success.html";
 const CANCEL_URL = "https://buantutoring.online/cancel.html";
+
+const twilioSid = defineString("twilio.sid");
+const twilioToken = defineString("twilio.token");
+const twilioFrom = defineString("twilio.from");
+const sendGridKey = defineString("sendgrid.key");
+const sendGridFrom = defineString("sendgrid.from");
+
+const NOTIFY_SMS_TO = "0412999120";
+const NOTIFY_EMAIL_TO = "buangareth@gmail.com";
+
+let twilioClient;
+const ensureTwilioClient = () => {
+  const sid = twilioSid.value();
+  const token = twilioToken.value();
+
+  if (!sid || !token) {
+    console.warn("Twilio credentials are not configured; SMS will be skipped.");
+    return null;
+  }
+
+  if (!twilioClient) {
+    twilioClient = new Twilio(sid, token);
+  }
+  return twilioClient;
+};
+
+const ensureSendGrid = () => {
+  const key = sendGridKey.value();
+  if (!key) {
+    console.warn("SendGrid API key is not configured; email will be skipped.");
+    return false;
+  }
+  sgMail.setApiKey(key);
+  return true;
+};
+
+const sendSmsNotification = async message => {
+  const client = ensureTwilioClient();
+  if (!client) return;
+
+  const from = twilioFrom.value();
+  if (!from) {
+    console.warn("Twilio 'from' number is not configured; SMS will be skipped.");
+    return;
+  }
+
+  try {
+    await client.messages.create({
+      body: message,
+      to: NOTIFY_SMS_TO,
+      from,
+    });
+  } catch (error) {
+    console.error("Failed to send SMS notification", error);
+  }
+};
+
+const sendEmailNotification = async (subject, text) => {
+  if (!ensureSendGrid()) return;
+
+  const from = sendGridFrom.value();
+  if (!from) {
+    console.warn("SendGrid 'from' address is not configured; email will be skipped.");
+    return;
+  }
+
+  try {
+    await sgMail.send({
+      to: NOTIFY_EMAIL_TO,
+      from,
+      subject,
+      text,
+    });
+  } catch (error) {
+    console.error("Failed to send email notification", error);
+  }
+};
+
+const notifyBookingTeam = async (subject, text) => {
+  await Promise.all([
+    sendSmsNotification(text),
+    sendEmailNotification(subject, text),
+  ]);
+};
+
+const formatResourceNotificationText = (resourceData, changeType) => {
+  const title = resourceData.title || resourceData.name || "Untitled resource";
+  const uploaderName =
+    resourceData.uploaderName || resourceData.uploader || resourceData.uploadedBy || "Unknown uploader";
+  const uploaderContact =
+    resourceData.uploaderEmail || resourceData.uploaderPhone || resourceData.contact || "";
+  const bookingContext = resourceData.bookingId
+    ? `Booking ID: ${resourceData.bookingId}. `
+    : "";
+  const resourceUrl = resourceData.url || resourceData.link || "";
+  const notes = resourceData.description || resourceData.notes || "";
+
+  const contactLabel = uploaderContact ? ` (${uploaderContact})` : "";
+  const urlSegment = resourceUrl ? ` Download: ${resourceUrl}` : "";
+  const detailSegment = notes ? ` Details: ${notes}` : "";
+
+  const actionLabel = changeType === "created" ? "New" : "Updated";
+  return `${actionLabel} resource ${title} uploaded by ${uploaderName}${contactLabel}. ${bookingContext}${detailSegment}${urlSegment}`.trim();
+};
+
+const resourceFieldsChanged = (beforeData, afterData) => {
+  if (!beforeData) return true;
+  const keysToCheck = [
+    "title",
+    "name",
+    "uploader",
+    "uploaderName",
+    "uploadedBy",
+    "uploaderEmail",
+    "uploaderPhone",
+    "contact",
+    "bookingId",
+    "url",
+    "link",
+    "description",
+    "notes",
+  ];
+
+  return keysToCheck.some(key => beforeData[key] !== afterData[key]);
+};
+
+const handleResourceNotification = async (resourceData, changeType) => {
+  if (!resourceData) return;
+  const message = formatResourceNotificationText(resourceData, changeType);
+  const subject = `${changeType === "created" ? "New" : "Updated"} resource: ${
+    resourceData.title || resourceData.name || "Untitled"
+  }`;
+  await notifyBookingTeam(subject, message);
+};
+
+export const onResourceCreated = onDocumentCreated("resources/{resourceId}", async event => {
+  const resourceData = event.data?.data?.();
+  await handleResourceNotification(resourceData, "created");
+});
+
+export const onResourceUpdated = onDocumentUpdated("resources/{resourceId}", async event => {
+  const beforeData = event.data?.before?.data?.();
+  const afterData = event.data?.after?.data?.();
+
+  if (!afterData) return;
+  if (!resourceFieldsChanged(beforeData, afterData)) return;
+
+  await handleResourceNotification(afterData, "updated");
+});
 
 const setCors = res => {
   res.set("Access-Control-Allow-Origin", "*");
@@ -53,6 +206,35 @@ const summariseBundles = bundles => {
     })
     .join(" | ");
   return trimMetadataValue(summary);
+};
+
+const formatBookingNotification = bookingDoc => {
+  const customer = bookingDoc.email || "Unknown customer";
+  const amount = bookingDoc.amount ? `${bookingDoc.currency} ${bookingDoc.amount}` : "N/A";
+  const sessions = (bookingDoc.sessions || [])
+    .map(session => {
+      if (session.summary) return session.summary;
+      const subject = session.subject || session.subjectId || "Session";
+      const date = session.date || "";
+      const time = session.time || "";
+      return `${subject} @ ${date} ${time}`.trim();
+    })
+    .filter(Boolean)
+    .join(" | ");
+  const bundles = (bookingDoc.bundles || [])
+    .map(bundle => {
+      if (bundle.summary) return bundle.summary;
+      const subject = bundle.subjectLabel || bundle.subject || "Bundle";
+      const hours = bundle.hours || bundle.quantity || "";
+      return `${subject} (${hours}h)`;
+    })
+    .filter(Boolean)
+    .join(" | ");
+
+  const segments = [sessions, bundles].filter(Boolean).join(" | ");
+  const lineItems = segments ? `Items: ${segments}.` : "";
+
+  return `Booking completed for ${customer}. Total: ${amount}. ${lineItems}`.trim();
 };
 
 export const createCheckoutSession = onRequest(async (req, res) => {
@@ -240,7 +422,41 @@ export const handleStripeWebhook = onRequest(async (req, res) => {
     } catch (error) {
       console.error("Unable to persist booking", error);
     }
+
+    try {
+      const summary = formatBookingNotification(doc);
+      await notifyBookingTeam(`Booking completed (${doc.currency} ${doc.amount})`, summary);
+    } catch (error) {
+      console.error("Unable to dispatch booking notification", error);
+    }
   }
 
   res.status(200).send("ok");
+});
+
+export const logResourceDownload = onCall(async request => {
+  const { resourceId, userId, email, notify } = request.data || {};
+
+  if (!resourceId || typeof resourceId !== "string") {
+    throw new HttpsError("invalid-argument", "A valid resourceId is required.");
+  }
+
+  const record = {
+    resourceId,
+    userId: userId || null,
+    email: email || null,
+    createdAt: new Date().toISOString(),
+    ip: request.rawRequest?.ip || null,
+  };
+
+  await db.collection("resourceDownloads").add(record);
+
+  if (notify) {
+    const downloadSummary = `Resource downloaded: ${resourceId}${userId ? ` by ${userId}` : ""}${
+      email ? ` (${email})` : ""
+    }.`;
+    await notifyBookingTeam(`Resource downloaded: ${resourceId}`, downloadSummary);
+  }
+
+  return { success: true };
 });
