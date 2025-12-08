@@ -594,10 +594,18 @@ const clearPendingBundle = () => {
 };
 
 const runWhenReady = callback => {
+  const safelyRun = () => {
+    try {
+      callback();
+    } catch (error) {
+      console.error("Error running ready callback", error);
+    }
+  };
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", callback);
+    document.addEventListener("DOMContentLoaded", safelyRun);
   } else {
-    callback();
+    safelyRun();
   }
 };
 
