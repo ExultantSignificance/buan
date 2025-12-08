@@ -17,6 +17,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+body.menu-open {
+  overflow: hidden;
+}
+
 main {
   width: min(1200px, 92%);
   margin: 0 auto 6rem;
