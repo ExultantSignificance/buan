@@ -2858,12 +2858,46 @@ runWhenReady(() => {
 runWhenReady(() => {
   const hamburger = document.getElementById('hamburger');
   const menu = document.getElementById('menu');
+  const body = document.body;
 
-  if (hamburger && menu) {
-    hamburger.addEventListener('click', () => {
-      menu.classList.toggle('active');
-    });
-  }
+  if (!hamburger || !menu || !body) return;
+
+  const setMenuState = isOpen => {
+    menu.classList.toggle('active', isOpen);
+    body.classList.toggle('menu-open', isOpen);
+    hamburger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  };
+
+  const toggleMenu = () => {
+    setMenuState(!menu.classList.contains('active'));
+  };
+
+  const closeMenu = () => {
+    if (!menu.classList.contains('active')) return;
+    setMenuState(false);
+  };
+
+  const handleOutsideClick = event => {
+    if (menu.contains(event.target) || hamburger.contains(event.target)) return;
+    closeMenu();
+  };
+
+  const handleKeydown = event => {
+    if (event.key === 'Escape') {
+      closeMenu();
+    }
+  };
+
+  hamburger.addEventListener('click', toggleMenu);
+  document.addEventListener('click', handleOutsideClick);
+  document.addEventListener('keydown', handleKeydown);
+  window.addEventListener('resize', closeMenu);
+
+  menu.querySelectorAll('a, button').forEach(element => {
+    element.addEventListener('click', closeMenu);
+  });
+
+  setMenuState(menu.classList.contains('active'));
 });
 
 runWhenReady(() => {
