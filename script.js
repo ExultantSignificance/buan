@@ -1297,9 +1297,104 @@ runWhenReady(() => {
   const successPage = document.querySelector("[data-success-page]");
   if (!successPage) return;
 
-  clearPendingBooking();
-  clearPendingBundle();
-  clearBookingState();
+  const followupPanel = successPage.querySelector("[data-success-followup]");
+  const thankYouPanel = successPage.querySelector("[data-success-thankyou]");
+  const contextEl = successPage.querySelector("[data-success-context]");
+  const onlineButton = successPage.querySelector("[data-success-online]");
+  const inPersonButton = successPage.querySelector("[data-success-inperson]");
+  const addressForm = successPage.querySelector("[data-success-address-form]");
+
+  const parseJson = value => {
+    if (!value) return null;
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const readLatestBookingContext = () => {
+    const pendingBooking = readPendingBooking();
+    if (pendingBooking) {
+      return { type: "session", details: pendingBooking };
+    }
+
+    const pendingBundle = readPendingBundle();
+    if (pendingBundle) {
+      return { type: "bundle", details: pendingBundle };
+    }
+
+    const latestBundleSelections = parseJson(sessionStorage.getItem("buan.bundleSelections"));
+    if (Array.isArray(latestBundleSelections) && latestBundleSelections.length) {
+      return { type: "bundle", details: { bundles: latestBundleSelections } };
+    }
+
+    const bookingState = readBookingState();
+    if (Array.isArray(bookingState?.dates) && bookingState.dates.length) {
+      return { type: "session", details: bookingState };
+    }
+
+    return null;
+  };
+
+  const bookingContext = readLatestBookingContext();
+
+  if (contextEl && bookingContext) {
+    if (bookingContext.type === "bundle") {
+      contextEl.textContent = "Great choice. Should this bundle be delivered online or in-person?";
+    } else {
+      contextEl.textContent = "Great choice. Should your upcoming session be online or in-person?";
+    }
+  }
+
+  const finalizeBookingState = () => {
+    clearPendingBooking();
+    clearPendingBundle();
+    clearBookingState();
+  };
+
+  const showThankYou = () => {
+    if (followupPanel) {
+      followupPanel.hidden = true;
+    }
+    if (addressForm) {
+      addressForm.hidden = true;
+    }
+    if (thankYouPanel) {
+      thankYouPanel.hidden = false;
+    }
+
+    finalizeBookingState();
+  };
+
+  if (onlineButton) {
+    onlineButton.addEventListener("click", () => {
+      showThankYou();
+    });
+  }
+
+  if (inPersonButton && addressForm) {
+    inPersonButton.addEventListener("click", () => {
+      addressForm.hidden = false;
+      const addressInput = addressForm.querySelector('input[name="address"]');
+      if (addressInput instanceof HTMLInputElement) {
+        addressInput.focus();
+      }
+    });
+
+    addressForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const formData = new FormData(addressForm);
+      const address = String(formData.get("address") || "").trim();
+
+      if (!address) {
+        return;
+      }
+
+      showThankYou();
+    });
+  }
 });
 
 runWhenReady(() => {

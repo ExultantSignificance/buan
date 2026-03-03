@@ -27,10 +27,30 @@
 
   <main class="checkout-result" data-success-page>
     <section class="checkout-result__panel">
-      <h2>Thank you! Your booking is confirmed.</h2>
-      <p>We've emailed your receipt and will be in touch shortly with next steps.</p>
-      <a class="checkout-result__cta" href="booknow.html">Book another session</a>
-      <a class="checkout-result__link" href="index.html">Return home</a>
+      <div data-success-followup>
+        <h2>Online or In-person?</h2>
+        <p data-success-context>Let us know how you want to complete this booking.</p>
+        <div>
+          <button class="checkout-result__cta" type="button" data-success-online>Online</button>
+          <button class="checkout-result__link" type="button" data-success-inperson>In-person</button>
+        </div>
+      </div>
+
+      <form data-success-address-form hidden>
+        <p>Please enter the address for your in-person session.</p>
+        <label>
+          <span class="sr-only">Session address</span>
+          <input type="text" name="address" autocomplete="street-address" placeholder="Street address" required />
+        </label>
+        <button class="checkout-result__cta" type="submit">Confirm in-person</button>
+      </form>
+
+      <div data-success-thankyou hidden>
+        <h2>Thank you! Your booking is confirmed.</h2>
+        <p>We've emailed your receipt and will be in touch shortly with next steps.</p>
+        <a class="checkout-result__cta" href="booknow.html">Book another session</a>
+        <a class="checkout-result__link" href="index.html">Return home</a>
+      </div>
     </section>
   </main>
 
