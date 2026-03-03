@@ -530,15 +530,132 @@ main {
   text-align: center;
 }
 
+.bundle-hero-card,
+.pricing-card {
+  background: linear-gradient(160deg, #ffffff, #f4f5f8);
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  border-radius: 28px;
+  box-shadow: 0 24px 46px rgba(0, 0, 0, 0.08);
+  padding: clamp(1.5rem, 3vw, 2.8rem);
+}
+
+.bundle-hero-card h2 {
+  margin: 0.35rem 0 0.8rem;
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  line-height: 1.2;
+}
+
+.bundle-intro {
+  margin: 0 auto;
+  max-width: 70ch;
+  color: #2b2b2b;
+}
+
+.bundle-pill-row {
+  margin-top: 1.4rem;
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.bundle-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(17, 17, 17, 0.18);
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.pricing-subtitle {
+  margin: 0.5rem auto 1.25rem;
+  max-width: 60ch;
+  color: #4a4a4a;
+}
+
+.pricing-table-wrap {
+  overflow-x: auto;
+}
+
 .pricing table {
   margin-left: auto;
   margin-right: auto;
-  width: fit-content; /* or set to 100% or a specific width as you prefer */
+  width: min(100%, 760px);
   display: table;
+  border-collapse: collapse;
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.05);
+}
+
+.pricing th,
+.pricing td {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.08);
+  text-align: left;
+  vertical-align: top;
+}
+
+.pricing tr:last-child td {
+  border-bottom: none;
+}
+
+.pricing th {
+  background: #111;
+  color: #fff;
+  font-weight: 600;
+}
+
+.bundle-discount-grid {
+  margin-top: 1.35rem;
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.bundle-discount-card {
+  margin: 0;
+  border: 1px solid rgba(17, 17, 17, 0.14);
+  border-radius: 16px;
+  padding: 0.75rem 0.8rem;
+  background: #fff;
+}
+
+.bundle-hours,
+.bundle-save {
+  margin: 0;
+}
+
+.bundle-hours {
+  font-weight: 600;
+}
+
+.bundle-save {
+  color: #444;
+  font-size: 0.95rem;
+}
+
+.pricing-note {
+  margin-top: 1.2rem;
+  color: #2f2f2f;
+  font-weight: 500;
 }
 
 .normal-footer {
   text-align: center;
+}
+
+@media (max-width: 640px) {
+  .pricing th,
+  .pricing td {
+    padding: 0.72rem;
+    font-size: 0.92rem;
+  }
 }
 
 /*footer of bundles section*/
